@@ -1,14 +1,14 @@
-def startContainer(ports, neighborhood):
+def start(ports, neighborhood):
     return -1
     # start process woth ports and neighborhood
     # return PID
 
-def endContainer(p):
+def end(p):
     pass
     # PID = p.PID
     # stop process with matching PID
 
-def restartContainer(prvProcess):
+def restart(prvProcess):
     pass
     # ports
     # ports[com] = p.component

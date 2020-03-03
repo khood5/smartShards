@@ -1,4 +1,4 @@
-class portmanager:
+class PortManager:
     _instance = None
 
     class __Manger:
@@ -7,11 +7,11 @@ class portmanager:
         def __init__(self):
             pass
 
-        def setRange(self, start, end):
+        def setrange(self, start, end):
             self.available.clear()
             self.available.extend(range(start,end))
 
-        def getPort(self):
+        def getport(self):
             return self.available.pop()
 
     def __new__(self):
@@ -19,11 +19,11 @@ class portmanager:
             self._instance = self.__Manger()
         return self._instance
 
-    def setRnage(self, start, end):
+    def setrange(self, start, end):
         self._instance.SetRange(start,end)
 
-    def getPort(self):
-        return self._instance.getPort()
+    def getport(self):
+        return self._instance.getport()
 
 
 
