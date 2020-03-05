@@ -1,4 +1,4 @@
-from Peer import Peer
+from src.Peer import Peer
 
 
 class ClusterEngine:

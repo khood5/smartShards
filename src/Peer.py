@@ -1,4 +1,4 @@
-from PBFT import PBFT
+from src.PBFT import PBFT
 
 
 class Peer:

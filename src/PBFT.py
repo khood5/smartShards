@@ -1,7 +1,7 @@
 # connection string (connStr) is a string in the form ~ tcp://203.0.113.0:8800
 
-from portmanager import PortManager
-import PBFT_instance
+from src.portmanager import PortManager
+from src import PBFT_instance
 
 # envi keys
 com = 'component'
@@ -28,4 +28,8 @@ class PBFT:
         self.envi[net] = availablePorts.getport()
         self.neighbors = neighborhood
         self.instance = PBFT_instance.start(self.envi, neighborhood)
+
+    def submit(self, tx):
+        print("submit called")
+        pass
 
