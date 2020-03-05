@@ -1,7 +1,7 @@
 # connection string (connStr) is a string in the form ~ tcp://203.0.113.0:8800
 
 from src.portmanager import PortManager
-from src import PBFT_instance
+from src import SawtoothPBFT
 
 # envi keys
 com = 'component'
@@ -27,7 +27,7 @@ class PBFT:
         self.envi[cons] = availablePorts.getport()
         self.envi[net] = availablePorts.getport()
         self.neighbors = neighborhood
-        self.instance = PBFT_instance.start(self.envi, neighborhood)
+        self.instance = SawtoothPBFT.start(self.envi, neighborhood)
 
     def submit(self, tx):
         print("submit called")
