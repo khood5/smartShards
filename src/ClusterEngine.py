@@ -1,5 +1,5 @@
 from Peer import Peer
-import transaction
+from transaction import transaction
 
 
 class ClusterEngine:
@@ -19,19 +19,19 @@ class ClusterEngine:
     # that is if clusters have 1 peer intersecting then run once
     # if they have 2 intersecting then run twice (with the same params)
     def addintersection(self, clusters):
-        size = len(clusters) - 1
-        cluster = clusters[0]
-        offset = 0
-        while len(cluster) < size:
-            offset = offset + 1
-            peer = Peer().addto(cluster, clusters[offset])
-            self.addpeer(cluster, peer)
-            self.addpeer(offset, peer)
+        size = len(clusters)
+        if size > 0:
+            cluster = clusters[0]
+            offset = 0
+            while len(cluster) < size:
+                offset = offset + 1
+                peer = Peer(cluster, clusters[offset])
+                self.addpeer(cluster, peer)
+                self.addpeer(offset, peer)
 
-        self.addintersection(cluster[1:])
+            self.addintersection(clusters[1:])
 
 Cluster = ClusterEngine()
-peer1 = Peer()
-Cluster.addpeer(0,peer1)
-peer2 = Peer()
-Cluster.addintersection(Cluster)
+List = [['A1', 'B1'] , ['A2', 'C1'], ['B2', 'C2']] 
+Cluster.addintersection(List)
+t1 = transaction(0,0)
