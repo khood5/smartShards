@@ -1,4 +1,5 @@
-from src.Peer import Peer
+from Peer import Peer
+import transaction
 
 
 class ClusterEngine:
@@ -14,7 +15,7 @@ class ClusterEngine:
             self.quorums[quorumid] = list()
             self.quorums[quorumid].append(peer)
 
-    # this must be rain once for each intersections
+    # this must be ran once for each intersections
     # that is if clusters have 1 peer intersecting then run once
     # if they have 2 intersecting then run twice (with the same params)
     def addintersection(self, clusters):
@@ -28,3 +29,9 @@ class ClusterEngine:
             self.addpeer(offset, peer)
 
         self.addintersection(cluster[1:])
+
+Cluster = ClusterEngine()
+peer1 = Peer()
+Cluster.addpeer(0,peer1)
+peer2 = Peer()
+Cluster.addintersection(Cluster)

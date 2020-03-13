@@ -1,7 +1,7 @@
 # connection string (connStr) is a string in the form ~ tcp://203.0.113.0:8800
 
-from src.portmanager import PortManager
-from src import SawtoothPBFT
+from portmanager import PortManager
+import SawtoothPBFT
 
 # envi keys
 com = 'component'

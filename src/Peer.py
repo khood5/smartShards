@@ -1,4 +1,4 @@
-from src.PBFT import PBFT
+from PBFT import PBFT
 
 
 class Peer:
@@ -6,12 +6,13 @@ class Peer:
     instanceB = PBFT()
 
     def __init__(self):
-        self.instanceA = PBFT
-        self.instanceB = PBFT
+        self.instanceA = PBFT()
+        self.instanceB = PBFT()
 
     def addto(self, quorumA, quorumB):
         self.instanceA.start(quorumA)
         self.instanceB.start(quorumB)
+        return self
 
 
 
