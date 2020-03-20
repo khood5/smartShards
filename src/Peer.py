@@ -1,13 +1,12 @@
-from src.PBFT import PBFT
-
+import src.SawtoothPBFT
 
 class Peer:
-    instanceA = PBFT()
-    instanceB = PBFT()
+    instanceA = None
+    instanceB = None
 
     def __init__(self):
-        self.instanceA = PBFT
-        self.instanceB = PBFT
+        self.instanceA = None
+        self.instanceB = None
 
     def addto(self, quorumA, quorumB):
         self.instanceA.start(quorumA)
