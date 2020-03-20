@@ -60,18 +60,18 @@ def append_endpoints(containers, command):
 
 
 class SawtoothContainer:
-    __container: docker.DockerClient.containers = None
-    __ip_addr: str = None
-    __key: str = None
 
     def __init__(self):
+        self.__client = docker.from_env()
         self.__container = None
         self.__ip_addr = None
         self.__key = None
 
+    def __del__(self):
+        self.__client.close()
+
     def start_instance(self):
-        client = docker.from_env()
-        container = client.containers.run('sawtooth:running', detach=True)
+        container = self.__client.containers.run('sawtooth:final', detach=True)
         run_command(container, 'sawtooth keygen')
         run_command(container, 'sawadm keygen')
         self.__container = container
