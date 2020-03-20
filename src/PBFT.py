@@ -31,5 +31,4 @@ class PBFT:
 
     def submit(self, tx):
         print("submit called")
-        pass
 

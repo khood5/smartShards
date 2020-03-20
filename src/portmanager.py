@@ -12,7 +12,8 @@ class PortManager:
             self.available.extend(range(start,end))
 
         def getport(self):
-            return self.available.pop()
+            pass
+            #return self.available.pop()
 
     def __new__(self):
         if self._instance is None:
