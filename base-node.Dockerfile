@@ -35,11 +35,7 @@ RUN apt-get update
 RUN apt install -y sawtooth 
 RUN apt install -y sawtooth sawtooth-pbft-engine
 
-# create keys
-#     create root key
-RUN sawtooth keygen
-
-#     create validator keys
-RUN sawadm keygen
-#     move keys to shared volume
-RUN mv /etc/sawtooth/keys/validator-* /shared_key
+# Keeps container running.
+#   If this command it not here then the container will exit immediately, the next step to create
+#   keys in the container and start PBFT
+CMD tail -f /dev/null
