@@ -11,7 +11,6 @@ net = 'network'
 
 class PBFT:
     envi = dict()
-    neighbors = list()
     instance = -1
 
     def __init__(self):
@@ -26,8 +25,7 @@ class PBFT:
         self.envi[com] = availablePorts.getport()
         self.envi[cons] = availablePorts.getport()
         self.envi[net] = availablePorts.getport()
-        self.neighbors = neighborhood
-        self.instance = SawtoothPBFT.start(self.envi, neighborhood)
+        self.instance = SawtoothPBFT.start(self.envi)
 
     def submit(self, tx):
         print("submit called")

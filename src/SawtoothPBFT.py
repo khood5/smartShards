@@ -1,4 +1,4 @@
-def start(ports, neighborhood):
+def start(ports):
     return -1
     # start process woth ports and neighborhood
     # return PID
