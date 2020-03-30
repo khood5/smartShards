@@ -13,7 +13,8 @@ RUN apt-get install -y -q --allow-downgrades \
     pkg-config \
     python3 \
     software-properties-common \
-    unzip 
+    unzip \
+    systemd
 
 # install ptotoc compiler and rust
 RUN curl -OLsS https://github.com/google/protobuf/releases/download/v3.5.1/protoc-3.5.1-linux-x86_64.zip \
