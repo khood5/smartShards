@@ -39,7 +39,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
 
 # this command is used to add/remove peers from a committee
 # it must be executed on one current member of the committee
-# keys are added in the format '["val_key", "val_key", "val_key"]' 
+# keys are added in the format '["val_key", "val_key", "val_key"]'
 SAWTOOTH_UPDATE_PEER_COMMAND = "sawset proposal create \
                              --key {user_priv} sawtooth.consensus.pbft.members=\'{keys}\'"
 
@@ -51,7 +51,7 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 180
+UPDATE_TIMEOUT = 90
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
@@ -88,6 +88,7 @@ class SawtoothContainer:
     def __del__(self):
         self.__container.stop(timeout=0)
         self.__client.close()
+        logger.info('{ip}: shutdown'.format(ip=self.ip()))
 
     # makes a new genesis block, runs on one and only one peer in a committee
     def make_genesis(self, validator_keys: list, user_keys: list):
@@ -124,10 +125,13 @@ class SawtoothContainer:
         self.start_sawtooth(ips)
 
     # this re-config the committee so that all peers in keys can A vote and B edit settings
-    def add_peer_to_committee(self, validator_keys: list, user_keys: list):
+    def update_committee(self, validator_keys: list, user_keys: list):
+        if len(validator_keys) < 4:
+            logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
+
         current_chain_size = len(self.blocks()['data'])
-        add_member = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
-        self.run_command(add_member)
+        update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
+        self.run_command(update_membership)
 
         # wait for new member to be added
         start = time.time()
@@ -140,8 +144,8 @@ class SawtoothContainer:
 
         keys = '{}'.format(user_keys)
         keys = keys.strip("[]").replace("\'", "")
-        add_permission = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
-        self.run_command(add_permission)
+        update_permissions = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
+        self.run_command(update_permissions)
 
         start = time.time()
         while len(self.blocks()['data']) != current_chain_size + 2:

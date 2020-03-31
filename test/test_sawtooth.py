@@ -221,8 +221,7 @@ class TestSawtoothMethods(unittest.TestCase):
         peers = start_test_committee(4)
         peers.append(SawtoothContainer())
         peers[-1].join_sawtooth([p.ip() for p in peers])
-        peers[0].add_peer_to_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        time.sleep(6)  # give committee time to add member
+        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
         blockchain_size = 3  # genesis+2 tx added 1 for membership and 1 for admin rights of new peer
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
@@ -251,7 +250,7 @@ class TestSawtoothMethods(unittest.TestCase):
         for _ in range(21):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[0].add_peer_to_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
@@ -272,7 +271,7 @@ class TestSawtoothMethods(unittest.TestCase):
         for _ in range(20):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[0].add_peer_to_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
 
         for _ in range(4):
@@ -286,13 +285,105 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_peer_leave(self):
-        print("leave test")
+        peers = start_test_committee(7)
+        blockchain_size = 1
+
+        old_peer = peers.pop()
+        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+        blockchain_size += 2
+
+        for p in peers:
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+
+        del old_peer
+
+        # make sure consensus still works
+        peers[0].submit_tx('test', '999')
+        blockchain_size += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual('999', p.get_tx('test'))
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+
+        # remove multiple members
+        old_peers = peers[:2]
+        peers.pop()
+        peers.pop()
+        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+        blockchain_size += 2
+
+        del old_peers
+
+        for p in peers:
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+
+        # make sure consensus still works
+        peers[0].submit_tx('test2', '888')
+        blockchain_size += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual('888', p.get_tx('test2'))
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
-        print('test_committee_shrink')
+        # remove a bunch of peers at once
+        peers = start_test_committee(25)
+        blockchain_size = 1
+
+        old_peers = peers[4:]
+        for _ in range(21):
+            peers.pop()
+
+        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+        blockchain_size += 2
+        del old_peers
+
+        peers[0].submit_tx('test', '999')
+        blockchain_size += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+            self.assertEqual('999', p.get_tx('test'))
+        del peers
+
+        # test removing them one by one
+        peers = start_test_committee(25)
+        blockchain_size = 1
+        for _ in range(21):
+            old_peer = peers.pop()
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            blockchain_size += 2
+            del old_peer
+
+        peers[0].submit_tx('test', '999')
+        blockchain_size += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+            self.assertEqual('999', p.get_tx('test'))
 
     def test_committee_churn(self):
-        print("committee churn test")
+        peers = start_test_committee(4)
+        blockchain_size = 1
+        for _ in range(4):
+            # add new peer
+            peers.append(SawtoothContainer())
+            peers[-1].join_sawtooth([p.ip() for p in peers])
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            blockchain_size += 2
+
+            # remove old peer
+            old_peer = peers.pop(0)
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            blockchain_size += 2
+            del old_peer
+
+        peers[0].submit_tx('test', '999')
+        blockchain_size += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual(blockchain_size, len(p.blocks()['data']))
+            self.assertEqual('999', p.get_tx('test'))
 
 
 if __name__ == '__main__':
