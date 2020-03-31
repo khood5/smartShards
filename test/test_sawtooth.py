@@ -326,27 +326,6 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
-        # remove a bunch of peers at once
-        peers = start_test_committee(25)
-        blockchain_size = 1
-
-        old_peers = peers[4:]
-        for _ in range(21):
-            peers.pop()
-
-        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        blockchain_size += 2
-        del old_peers
-
-        peers[0].submit_tx('test', '999')
-        blockchain_size += 1
-        time.sleep(3)
-        for p in peers:
-            self.assertEqual(blockchain_size, len(p.blocks()['data']))
-            self.assertEqual('999', p.get_tx('test'))
-        del peers
-
-        # test removing them one by one
         peers = start_test_committee(25)
         blockchain_size = 1
         for _ in range(21):
