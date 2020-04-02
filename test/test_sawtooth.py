@@ -5,34 +5,9 @@ import docker as dockerapi
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY
 from src.SawtoothPBFT import USER_KEY
-
-
-def stop_all_containers():
-    client = dockerapi.from_env()
-    for c in client.containers.list():
-        c.stop(timeout=0)
-    client.close()
-
-
-# gets a list of all running container ids
-def get_container_ids():
-    client = dockerapi.from_env()
-    ids = []
-    for c in client.containers.list():
-        ids.append(c.id)
-    client.close()
-    return ids
-
-
-# makes a test committee of user defined size
-def start_test_committee(size: int):
-    peers = [SawtoothContainer() for _ in range(size)]
-    peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
-    committee_ips = [p.ip() for p in peers]
-    for p in peers:
-        p.start_sawtooth(committee_ips)
-
-    return peers
+from src.util import stop_all_containers
+from src.util import get_container_ids
+from src.util import make_sawtooth_committee
 
 
 class TestSawtoothMethods(unittest.TestCase):
@@ -156,7 +131,7 @@ class TestSawtoothMethods(unittest.TestCase):
         docker.close()
 
     def test_transaction_confirmation(self):
-        peers = start_test_committee(4)
+        peers = make_sawtooth_committee(4)
         number_of_tx = 1
         for p in peers:
             p.submit_tx('test{}'.format(number_of_tx), '999')
@@ -166,7 +141,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, blockchain_size)
 
     def test_high_transaction_load(self):
-        peers = start_test_committee(5)
+        peers = make_sawtooth_committee(5)
         number_of_tx = 1
         i = 0
         for _ in range(99):  # peers start to drop old blocks at 100
@@ -183,7 +158,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, blockchain_size)
 
     def test_fault_tolerance(self):
-        peers = start_test_committee(7)
+        peers = make_sawtooth_committee(7)
         number_of_tx = 1  # genesis
 
         del peers[0]
@@ -203,7 +178,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, peers_blockchain)
 
     def large_committee(self):
-        peers = start_test_committee(10)
+        peers = make_sawtooth_committee(10)
 
         # makes sure genesis block is in each peer
         peers[0].submit_tx('test', '999')
@@ -211,14 +186,14 @@ class TestSawtoothMethods(unittest.TestCase):
             blocks = p.blocks()['data']
             self.assertEqual(2, len(blocks))
 
-        peers = start_test_committee(25)
+        peers = make_sawtooth_committee(25)
         peers[0].submit_tx('test', '999')
         for p in peers:
             blocks = p.blocks()['data']
             self.assertEqual(2, len(blocks))
 
     def test_peer_join(self):
-        peers = start_test_committee(4)
+        peers = make_sawtooth_committee(4)
         peers.append(SawtoothContainer())
         peers[-1].join_sawtooth([p.ip() for p in peers])
         peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
@@ -245,7 +220,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, peers_blockchain)
 
     def test_committee_growth(self):
-        peers = start_test_committee(4)
+        peers = make_sawtooth_committee(4)
         blockchain_size = 1
         for _ in range(21):
             peers.append(SawtoothContainer())
@@ -266,7 +241,7 @@ class TestSawtoothMethods(unittest.TestCase):
                     self.assertIn("tcp://{}:8800".format(ip), peers_config)
 
     def test_new_peer_replace_old(self):
-        peers = start_test_committee(4)
+        peers = make_sawtooth_committee(4)
         blockchain_size = 1
         for _ in range(20):
             peers.append(SawtoothContainer())
@@ -285,7 +260,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_peer_leave(self):
-        peers = start_test_committee(7)
+        peers = make_sawtooth_committee(7)
         blockchain_size = 1
 
         old_peer = peers.pop()
@@ -326,7 +301,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
-        peers = start_test_committee(25)
+        peers = make_sawtooth_committee(25)
         blockchain_size = 1
         for _ in range(21):
             old_peer = peers.pop()
@@ -342,7 +317,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual('999', p.get_tx('test'))
 
     def test_committee_churn(self):
-        peers = start_test_committee(4)
+        peers = make_sawtooth_committee(4)
         blockchain_size = 1
         for _ in range(4):
             # add new peer

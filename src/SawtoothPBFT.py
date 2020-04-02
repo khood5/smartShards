@@ -2,12 +2,15 @@ import docker
 import json
 import time
 import logging
+import logging.handlers
+import os
+from pathlib import Path
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
     level=logging.INFO,
     datefmt='%H:%M:%S')
-logger = logging.getLogger(__name__)
+sawtooth_logger = logging.getLogger(__name__)
 
 # name of the docker image to run
 DOCKER_IMAGE = "sawtooth:final"
@@ -71,6 +74,22 @@ SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator \
                            "client": 'intkey-tp-python -v',
                            "pbft": 'pbft-engine -vv --connect tcp://{ip}:5050'}
 
+LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+def sawtooth_container_log_to(path, console_logging=False):
+    handler = logging.handlers.RotatingFileHandler(path,  backupCount=5, maxBytes=LOG_FILE_SIZE)
+    formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    sawtooth_logger.propagate = console_logging
+    sawtooth_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    sawtooth_logger.addHandler(handler)
+
+
+def append_keys(keys, command):
+    keys = '{}'.format(str(keys).replace('\'', '\"'))  # converts list to string in form '["keyVal","keyVal" ...]'
+    return command.format(keys=keys, user_priv=USER_KEY["priv"])
+
 
 class SawtoothContainer:
 
@@ -88,7 +107,7 @@ class SawtoothContainer:
     def __del__(self):
         self.__container.stop(timeout=0)
         self.__client.close()
-        logger.info('{ip}: shutdown'.format(ip=self.ip()))
+        sawtooth_logger.info('{ip}: shutdown'.format(ip=self.ip()))
 
     # makes a new genesis block, runs on one and only one peer in a committee
     def make_genesis(self, validator_keys: list, user_keys: list):
@@ -127,7 +146,7 @@ class SawtoothContainer:
     # this re-config the committee so that all peers in keys can A vote and B edit settings
     def update_committee(self, validator_keys: list, user_keys: list):
         if len(validator_keys) < 4:
-            logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
+            sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
 
         current_chain_size = len(self.blocks()['data'])
         update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
@@ -138,7 +157,7 @@ class SawtoothContainer:
         while len(self.blocks()['data']) != current_chain_size + 1:
             end = time.time()
             if end - start > UPDATE_TIMEOUT:
-                logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
+                sawtooth_logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
                 break
             time.sleep(1)
 
@@ -151,7 +170,7 @@ class SawtoothContainer:
         while len(self.blocks()['data']) != current_chain_size + 2:
             end = time.time()
             if end - start > UPDATE_TIMEOUT:
-                logger.critical("------ PERMISSION UPDATE TIMEOUT ------")
+                sawtooth_logger.critical("------ PERMISSION UPDATE TIMEOUT ------")
                 break
             time.sleep(1)
 
@@ -192,25 +211,20 @@ class SawtoothContainer:
 
     # run a command in a container, will return the output of the command
     def run_command(self, command: str):
-        logger.info("{ip}:running command:  {command}".format(ip=self.ip(), command=command))
+        sawtooth_logger.info("{ip}:running command:  {command}".format(ip=self.ip(), command=command))
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
-        logger.info("{ip}:command result:  {result}".format(ip=self.ip(), result=result))
+        sawtooth_logger.info("{ip}:command result:  {result}".format(ip=self.ip(), result=result))
         return result
 
     # start a service inside the container, will not return any output
     def run_service(self, service_start_command: str):
-        logger.info("{ip}:starting service:  {request}".format(ip=self.ip(), request=service_start_command))
+        sawtooth_logger.info("{ip}:starting service:  {request}".format(ip=self.ip(), request=service_start_command))
         self.__container.exec_run(service_start_command, detach=True)
 
     # gets some json from the peer via a URL (ex: http://localhost:8008/blocks)
     def sawtooth_api(self, request: str):
-        logger.info("{ip}:api request:  {request}".format(ip=self.ip(), request=request))
+        sawtooth_logger.info("{ip}:api request:  {request}".format(ip=self.ip(), request=request))
         command = 'curl -sS {}'.format(request)
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
-        logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
+        sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
         return json.loads(result)
-
-
-def append_keys(keys, command):
-    keys = '{}'.format(str(keys).replace('\'', '\"'))  # converts list to string in form '["keyVal","keyVal" ...]'
-    return command.format(keys=keys, user_priv=USER_KEY["priv"])
