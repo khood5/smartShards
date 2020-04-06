@@ -62,14 +62,10 @@ def run_experiment(peers: list, total_tx: int):
         confirmed = False
         while not propagated:
             print('.', end='', flush=True)
-            # check for confirmation
+            propagated = True
             for p in peers:
                 if p.get_tx(tx_name) == '999' and not confirmed:
                     confirmation_delays.append(time.time() - start_confirmed)
-
-            # check for propagation
-            propagated = True
-            for p in peers:
                 if p.get_tx(tx_name) != '999':
                     propagated = False
 
