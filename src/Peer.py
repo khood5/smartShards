@@ -1,16 +1,14 @@
-import src.SawtoothPBFT
+import SawtoothPBFT
+
 
 class Peer:
     instanceA = None
     instanceB = None
 
-    def __init__(self):
-        self.instanceA = None
-        self.instanceB = None
 
-    def addto(self, quorumA, quorumB):
-        self.instanceA.start(quorumA)
-        self.instanceB.start(quorumB)
+    def __init__(self, sawtooth1, sawtooth2):
+        self.instanceA = sawtooth1
+        self.instanceB = sawtooth2
 
-
-
+    def inserttransaction(self, tx):
+        print("Submitted")
