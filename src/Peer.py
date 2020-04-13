@@ -1,6 +1,7 @@
 from src.SawtoothPBFT import SawtoothContainer
 from src.structures import Quorum
 import time
+import os
 import logging
 import logging.handlers
 
@@ -8,7 +9,7 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
     level=logging.INFO,
     datefmt='%H:%M:%S')
-sawtooth_logger = logging.getLogger(__name__)
+peer_logger = logging.getLogger(__name__)
 
 LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -17,9 +18,9 @@ def peer_log_to(path, console_logging=False):
     handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
-    sawtooth_logger.propagate = console_logging
-    sawtooth_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
-    sawtooth_logger.addHandler(handler)
+    peer_logger.propagate = console_logging
+    peer_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    peer_logger.addHandler(handler)
 
 
 class Peer:
@@ -28,7 +29,7 @@ class Peer:
         self.instance_a = SawtoothContainer()
         self.instance_b = SawtoothContainer()
         self.tx_queue = []
-        self.last_submit = 0
+        self.last_submit = time.time()
         self.a_id = None
         self.b_id = None
 
@@ -45,6 +46,6 @@ class Peer:
         pass
 
     def __submit(self, value: str, key: str, quorum_id: int):
-        if self.last_submit - time.time() > 3:
+        if time.time() - self.last_submit > 3:
 
             self.last_submit = time.time()
