@@ -25,6 +25,13 @@ def make_sawtooth_committee(size: int):
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
     committee_ips = [p.ip() for p in peers]
     for p in peers:
-        p.start_sawtooth(committee_ips)
+        p.join_sawtooth(committee_ips)
+
+    done = False
+    while not done:
+        done = True
+        for p in peers:
+            if len(p.blocks()['data']) != 1:
+                done = False
 
     return peers

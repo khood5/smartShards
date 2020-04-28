@@ -33,6 +33,9 @@ class Peer:
         self.a_id = None
         self.b_id = None
 
+    def info(self):
+        return {'instance_a': self.instance_a.ip(), 'instance_b': self.instance_b.ip()}
+
     def start_in(self, quorum_a: Quorum, quorum_b: Quorum):
         self.a_id = quorum_a.quorum_id()
         self.b_id = quorum_b.quorum_id()
@@ -46,6 +49,4 @@ class Peer:
         pass
 
     def __submit(self, value: str, key: str, quorum_id: int):
-        if time.time() - self.last_submit > 3:
-
-            self.last_submit = time.time()
+        pass

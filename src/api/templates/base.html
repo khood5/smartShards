@@ -1,0 +1,17 @@
+<html>
+    <head>
+      {% if title %}
+      <title>{{ title }}</title>
+      {% endif %}
+    </head>
+    <body>
+    <div>
+        <a href="{{ url_for('info') }}">Info</a>
+        <a href="{{ url_for('settings') }}">Settings</a>
+        <a href="{{ url_for('container_info') }}">Container Info</a>
+    </div>
+        <hr>
+        {% block content %}
+        {% endblock %}
+    </body>
+</html>

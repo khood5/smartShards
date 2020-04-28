@@ -122,9 +122,10 @@ class SawtoothContainer:
 
         self.run_command(SAWTOOTH_GENESIS_COMMANDS["make_genesis"])
 
-    # starts each of the sawtooth components
+    # joins a PBFT committee
     # see https://sawtooth.hyperledger.org/docs/core/nightly/1-2/app_developers_guide/ubuntu_test_network.html ~ step 5
-    def start_sawtooth(self, neighbours_ips: list):
+    def join_sawtooth(self, neighbours_ips: list):
+        assert (len(neighbours_ips) >= 4)  # any less and joining is not possible
         ips = []
         for ip in neighbours_ips:
             if ip != self.__ip_addr:
@@ -137,11 +138,6 @@ class SawtoothContainer:
         self.run_service(SAWTOOTH_START_COMMANDS["settings_processor"])
         self.run_service(SAWTOOTH_START_COMMANDS["client"])
         self.run_service(SAWTOOTH_START_COMMANDS["pbft"].format(ip=self.ip()))
-
-    # joins a PBFT committee that already exists
-    def join_sawtooth(self, ips: list):
-        assert (len(ips) >= 4)  # any less and joining is not possible
-        self.start_sawtooth(ips)
 
     # this re-config the committee so that all peers in keys can A vote and B edit settings
     def update_committee(self, validator_keys: list, user_keys: list):

@@ -1,7 +1,5 @@
-from ClusterEngine import ClusterEngine
-from transaction import transaction
-import docker as dockerapi
-from SawtoothPBFT import SawtoothContainer
+from src.structures import Transaction
+from src.SawtoothPBFT import SawtoothContainer
 
 class main:
 

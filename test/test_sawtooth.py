@@ -101,7 +101,7 @@ class TestSawtoothMethods(unittest.TestCase):
         peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
         committee_ips = [p.ip() for p in peers]
         for p in peers:
-            p.start_sawtooth(committee_ips)
+            p.join_sawtooth(committee_ips)
 
         # make sure all peers are running
         process_names = []
