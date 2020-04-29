@@ -149,12 +149,12 @@ def submit_s():
 
 # get tx
 @app.route('/s/gettx/<key>')
-def gettx(key):
+def gettx_s(key):
     value = singlePeer.get_tx(key)
     return 'get tx key:{k}, value:{v}'.format(k=key, v=value)
 
 
 # get blocks
 @app.route('/s/blocks')
-def blocks():
+def blocks_s():
     return singlePeer.blocks()
