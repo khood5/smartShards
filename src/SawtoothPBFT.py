@@ -54,7 +54,7 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 90
+UPDATE_TIMEOUT = 15
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
@@ -95,9 +95,9 @@ class SawtoothContainer:
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
-    def __init__(self):
+    def __init__(self, network='bridge'):
         self.__client = docker.from_env()
-        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True)
+        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=network)
         self.__ip_addr = self.run_command('hostname -i')
         self.run_command('sawtooth keygen')
         self.run_command('sawadm keygen')

@@ -222,10 +222,10 @@ class TestSawtoothMethods(unittest.TestCase):
     def test_committee_growth(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
-        for _ in range(21):
+        for i in range(21):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
@@ -301,11 +301,11 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
-        peers = make_sawtooth_committee(25)
+        peers = make_sawtooth_committee(15)
         blockchain_size = 1
-        for _ in range(21):
+        for i in range(11):
             old_peer = peers.pop()
-            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
             del old_peer
 
@@ -319,16 +319,16 @@ class TestSawtoothMethods(unittest.TestCase):
     def test_committee_churn(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
-        for _ in range(4):
+        for i in range(4):
             # add new peer
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
 
             # remove old peer
             old_peer = peers.pop(0)
-            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
             del old_peer
 

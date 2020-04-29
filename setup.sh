@@ -1,6 +1,7 @@
 #
 # Script must be run as sudo
 # run this inside smartShards dir (a.k.a dont move to run)
+# some post install steps maybe necessary see https://docs.docker.com/engine/install/linux-postinstall/
 #
 
 # make sure old version is not present 
