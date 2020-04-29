@@ -225,7 +225,7 @@ class TestSawtoothMethods(unittest.TestCase):
     def test_committee_growth(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
-        for i in range(15):
+        for i in range(21):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
@@ -332,7 +332,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
             # remove old peer
             old_peer = peers.pop(0)
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
             del old_peer
 
