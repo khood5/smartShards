@@ -1,6 +1,4 @@
 from src.SawtoothPBFT import SawtoothContainer
-from src.structures import Quorum
-import time
 import os
 import logging
 import logging.handlers
@@ -25,27 +23,48 @@ def peer_log_to(path, console_logging=False):
 
 class Peer:
 
-    def __init__(self):
-        self.instance_a = SawtoothContainer()
-        self.instance_b = SawtoothContainer()
-        self.tx_queue = []
-        self.last_submit = time.time()
-        self.a_id = None
-        self.b_id = None
+    def __init__(self, sawtoothcontainer1, sawtoothcontainer2, Aid, Bid):
+        self.instance_a = sawtoothcontainer1
+        self.instance_b = sawtoothcontainer2
+        self.a_id = Aid
+        self.b_id = Bid
 
-    def start_in(self, quorum_a: Quorum, quorum_b: Quorum):
-        self.a_id = quorum_a.quorum_id()
-        self.b_id = quorum_b.quorum_id()
-        self.instance_a.join_sawtooth(quorum_a.members())
-        self.instance_b.join_sawtooth(quorum_b.members())
+    def make_genesis(self, committee_id, val_keys, user_keys):
+        if committee_id == self.a_id:
+            self.instance_b.make_genesis(val_keys, user_keys)
+        else:
+            self.instance_b.make_genesis(val_keys, user_keys)
 
-    def submit_to_a(self, value: str, key: str):
-        pass
+    def start_sawtooth(self, committee_A_ips, committee_B_ips):
+        self.instance_a.start_sawtooth(committee_A_ips)
+        self.instance_a.start_sawtooth(committee_B_ips)
 
-    def submit_to_b(self, value: str, key: str):
-        pass
+    def submit(self, tx):
+        if tx.quorumid == self.a_id:
+            #self.instance_a.submit_tx(tx)
+            self.instance_a.submit_tx('test{}'.format(tx.tx_number), '999')
 
-    def __submit(self, value: str, key: str, quorum_id: int):
-        if time.time() - self.last_submit > 3:
+        else:
+            #self.instance_b.submit_tx(tx)
+            self.instance_a.submit_tx('test{}'.format(tx.tx_number), '999')
 
-            self.last_submit = time.time()
+    def check_confirmation(self, tx):
+        if tx.quorumid == self.a_id:
+            blockchain_size = len(self.instance_a.blocks()['data'])
+            self.instance_a.assertEqual(tx.tx_number, blockchain_size)
+        else:
+            blockchain_size = len(self.instance_b.blocks()['data'])
+            self.instance_b.assertEqual(tx.tx_number, blockchain_size)
+
+    def peer_join(self, committee_id, committee_ips):
+        if committee_id == self.a_id:
+            self.instance_a.join_sawtooth(committee_ips)
+        else:
+            self.instance_b.join_sawtooth(committee_ips)
+
+    def update_committee(self, committee_id, val_keys, user_keys):
+        # Needed after a peer is deleted and when a peer joins
+        if committee_id == self.a_id:
+            self.instance_a.update_committee(val_keys, user_keys)
+        else:
+            self.instance_b.update_committee(val_keys, user_keys)        

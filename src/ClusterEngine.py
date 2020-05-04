@@ -1,17 +1,16 @@
 from Peer import Peer
-from random import randint
 
 
 class ClusterEngine:
     peer = None
     instanceAid = -1
     instanceBid = -1
-    id = '0'
+    id = None
     neighborsA = dict()
     neighborsB = dict()
 
     def __init__(self, Aid, Bid, id, sawtoothcontainer1, sawtoothcontainer2):
-        self.peer = Peer(sawtoothcontainer1, sawtoothcontainer2)
+        self.peer = Peer(sawtoothcontainer1, sawtoothcontainer2, Aid, Bid)
 
         self.instanceAid = Aid
         self.instanceBid = Bid
@@ -33,19 +32,21 @@ class ClusterEngine:
 
     # sends transaction to random peer in correct quorum
     def inserttransaction(self, tx):
-        if tx.quorumid == self.instanceAid:
-            self.peer.inserttransaction(tx)
+        if tx.quorumid == self.instanceAid or tx.quorumid == self.instanceBid:
+            self.peer.submit(tx)
+            return -1
 
         elif tx.quorumid == self.instanceBid:
-            self.peer.inserttransaction(tx)
+            self.peer.submit(tx)
+            return -1
             
         elif tx.quorumid in self.neighborsA.values():
             neighbor = list(self.neighborsA.keys())[list(self.neighborsA.values()).index(tx.quorumid)]
-            print("Route transaction")
+            return neighbor
 
         elif tx.quorumid in self.neighborsB.values():
             neighbor = list(self.neighborsB.keys())[list(self.neighborsB.values()).index(tx.quorumid)]
-            print("Route transaction")
+            return neighbor
             
         else:
             print("Intersection Lost")
