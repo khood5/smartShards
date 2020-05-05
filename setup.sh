@@ -32,6 +32,11 @@ usermod -aG docker $USER
 # install docker API
 pip3 install docker
 
+# make firewall exceptions for swarm (overlay network for docker)
+ufw allow 2376/tcp && sudo ufw allow 7946/udp &&
+ufw allow 7946/tcp && sudo ufw allow 80/tcp &&
+ufw allow 2377/tcp && sudo ufw allow 4789/udp
+
 # build sawtooth image
 docker build -t sawtooth:final -f  ./base-node.Dockerfile .
 

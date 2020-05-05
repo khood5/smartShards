@@ -38,12 +38,14 @@ class TestSawtoothMethods(unittest.TestCase):
             .output.decode('utf-8').strip()
         container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=USER_KEY["pub"])) \
             .output.decode('utf-8').strip()
+        container_network = 'bridge'
 
         self.assertEqual(sawtooth_instance.id(), docker.containers.list()[0].id)
         self.assertEqual(sawtooth_instance.ip(), container_ip)
         self.assertEqual(sawtooth_instance.val_key(), container_val_key)
         self.assertEqual(sawtooth_instance.user_key(), container_user_key)
         self.assertNotEqual(sawtooth_instance.user_key(), sawtooth_instance.val_key())
+        self.assertEqual(sawtooth_instance.attached_network(), container_network)
 
         number_of_running_processes = len(docker.containers.list()[0].top()['Processes'][0])
         # should only be 2 processes bash and tail -f /dev/null
@@ -222,7 +224,7 @@ class TestSawtoothMethods(unittest.TestCase):
     def test_committee_growth(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
-        for i in range(21):
+        for i in range(15):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])

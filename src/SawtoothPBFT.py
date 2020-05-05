@@ -1,3 +1,4 @@
+from json import JSONDecodeError
 import docker
 import json
 import time
@@ -97,7 +98,8 @@ class SawtoothContainer:
     # does not start PBFT
     def __init__(self, network='bridge'):
         self.__client = docker.from_env()
-        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=network)
+        self.__container_network = network
+        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=self.__container_network)
         self.__ip_addr = self.run_command('hostname -i')
         self.run_command('sawtooth keygen')
         self.run_command('sawadm keygen')
@@ -189,6 +191,10 @@ class SawtoothContainer:
             return None
         return self.__container.id
 
+    # returns the network the container was connected to
+    def attached_network(self):
+        return self.__container_network
+
     # all peers communicate via a virtual network hosted by docker. Docker runs DHCP and will assign each peer a new IP
     # peers can access other peers by there ip address and only there ip address, there is no DNS
     def ip(self):
@@ -223,4 +229,11 @@ class SawtoothContainer:
         command = 'curl -sS {}'.format(request)
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
         sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
-        return json.loads(result)
+        try:
+            return json.loads(result)
+        except JSONDecodeError as e:
+            logging.info("{ip}: had an API error; Is PBFT running?".format(ip=self.ip()), e)
+        finally:
+            return {}
+
+

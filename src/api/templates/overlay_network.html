@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h1>Network</h1>
+    <p>Current Network: {%peer.attached_network()%}</p>
+    <hr>
+    <form action="" method="post" novalidate>
+        {{ add.hidden_tag() }}
+        <p>
+            {{ networkForm.name.label }}<br>
+            {{ networkForm.name(size=12) }}<br>
+            {% for error in networkForm.name.errors %}
+                <span style="color: red;">[{{ error }}]</span>
+            {% endfor %}
+        </p>
+        <p><strong>THIS WILL RESTART SAWTOOTH PBFT</strong></p>
+        <p>{{ networkForm.submit() }}</p>
+    </form>
+
+
+{% endblock %}
