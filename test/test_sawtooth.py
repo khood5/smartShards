@@ -225,7 +225,7 @@ class TestSawtoothMethods(unittest.TestCase):
     def test_committee_growth(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
-        for i in range(21):
+        for i in range(15):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
