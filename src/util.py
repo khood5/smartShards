@@ -1,5 +1,6 @@
 import docker as dockerapi
 from src.SawtoothPBFT import SawtoothContainer
+from src.Peer import Peer
 
 
 def stop_all_containers():
@@ -26,5 +27,14 @@ def make_sawtooth_committee(size: int):
     committee_ips = [p.ip() for p in peers]
     for p in peers:
         p.start_sawtooth(committee_ips)
+
+    return peers
+
+
+# makes 2 quorums each with size number of peers (with whole committee intersection i.e. each peer is in both quorums)
+def make_peer_committees(size: int, id_a=1, id_b=2):
+    containers_a = make_sawtooth_committee(size)
+    containers_b = make_sawtooth_committee(size)
+    peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
 
     return peers

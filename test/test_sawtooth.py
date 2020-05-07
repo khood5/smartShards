@@ -339,6 +339,20 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
             self.assertEqual('999', p.get_tx('test'))
 
+    def test_concurrent_committees(self):
+        set_a = make_sawtooth_committee(4)
+        set_b = make_sawtooth_committee(4)
+        tx_a = 'test_a'
+        tx_b = 'test_b'
+        set_a[0].submit_tx(tx_a, '999')
+        set_b[0].submit_tx(tx_b, '888')
+        time.sleep(3)
+        for p in set_a:
+            self.assertEqual(2, len(p.blocks()['data']))
+
+        for p in set_b:
+            self.assertEqual(2, len(p.blocks()['data']))
+
 
 if __name__ == '__main__':
     print("RUNNING {} TESTS".format(SawtoothContainer().__class__.__name__))

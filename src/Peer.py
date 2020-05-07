@@ -23,48 +23,88 @@ def peer_log_to(path, console_logging=False):
 
 class Peer:
 
-    def __init__(self, sawtoothcontainer1, sawtoothcontainer2, Aid, Bid):
-        self.instance_a = sawtoothcontainer1
-        self.instance_b = sawtoothcontainer2
-        self.a_id = Aid
-        self.b_id = Bid
+    def __init__(self, sawtooth_container_a, sawtooth_container_b, Aid, Bid):
+        self.instance_a = sawtooth_container_a
+        self.instance_b = sawtooth_container_b
+        self.id_a = Aid
+        self.id_b = Bid
+        self.neighbors = []
+
+    def __del__(self):
+        del self.instance_a
+        del self.instance_b
+
+    def add_neighbor(self, neighbor_ip):
+        if neighbor_ip not in self.neighbors:
+            self.neighbors.append(neighbor_ip)
 
     def make_genesis(self, committee_id, val_keys, user_keys):
-        if committee_id == self.a_id:
-            self.instance_b.make_genesis(val_keys, user_keys)
+        if committee_id == self.id_a:
+            self.instance_a.make_genesis(val_keys, user_keys)
         else:
             self.instance_b.make_genesis(val_keys, user_keys)
 
     def start_sawtooth(self, committee_A_ips, committee_B_ips):
         self.instance_a.start_sawtooth(committee_A_ips)
-        self.instance_a.start_sawtooth(committee_B_ips)
+        self.instance_b.start_sawtooth(committee_B_ips)
 
     def submit(self, tx):
-        if tx.quorumid == self.a_id:
-            #self.instance_a.submit_tx(tx)
-            self.instance_a.submit_tx('test{}'.format(tx.tx_number), '999')
+        if tx.quorum_id == self.id_a:
+            self.instance_a.submit_tx(tx.key, tx.value)
 
         else:
-            #self.instance_b.submit_tx(tx)
-            self.instance_a.submit_tx('test{}'.format(tx.tx_number), '999')
+            self.instance_b.submit_tx(tx.key, tx.value)
 
-    def check_confirmation(self, tx):
-        if tx.quorumid == self.a_id:
-            blockchain_size = len(self.instance_a.blocks()['data'])
-            self.instance_a.assertEqual(tx.tx_number, blockchain_size)
+    def ip(self, quorum_id):
+        if quorum_id == self.id_a:
+            return self.instance_a.ip()
+        elif quorum_id == self.id_b:
+            return self.instance_b.ip()
         else:
-            blockchain_size = len(self.instance_b.blocks()['data'])
-            self.instance_b.assertEqual(tx.tx_number, blockchain_size)
+            peer_logger.error('PEER: ip request for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                                                                                        unknown=quorum_id))
+
+    def user_key(self, quorum_id):
+        if quorum_id == self.id_a:
+            return self.instance_a.user_key()
+        elif quorum_id == self.id_b:
+            return self.instance_b.user_key()
+        else:
+            peer_logger.error('PEER: user key request for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                                                                                        unknown=quorum_id))
+
+    def val_key(self, quorum_id):
+        if quorum_id == self.id_a:
+            return self.instance_a.val_key()
+        elif quorum_id == self.id_b:
+            return self.instance_b.val_key()
+        else:
+            peer_logger.error('PEER: validator key request for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                                                                                        unknown=quorum_id))
+
+    def blocks(self, quorum_id):
+        if quorum_id == self.id_a:
+            return self.instance_a.blocks()['data']
+        elif quorum_id == self.id_b:
+            return self.instance_b.blocks()['data']
+        else:
+            peer_logger.error('PEER: blocks request for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                                                                                        unknown=quorum_id))
+        return {}
 
     def peer_join(self, committee_id, committee_ips):
-        if committee_id == self.a_id:
+        if committee_id == self.id_a:
             self.instance_a.join_sawtooth(committee_ips)
         else:
             self.instance_b.join_sawtooth(committee_ips)
 
     def update_committee(self, committee_id, val_keys, user_keys):
         # Needed after a peer is deleted and when a peer joins
-        if committee_id == self.a_id:
+        if committee_id == self.id_a:
             self.instance_a.update_committee(val_keys, user_keys)
         else:
             self.instance_b.update_committee(val_keys, user_keys)        
