@@ -249,11 +249,9 @@ class TestSawtoothMethods(unittest.TestCase):
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
         old_peer = peers.pop()
-        peers[0].update_committee(id_a, [p.instance_a.val_key() for p in peers],
-                                  [p.instance_a.user_key() for p in peers])
+        peers[0].update_committee(id_a, [p.val_key(id_a) for p in peers], [p.user_key(id_a) for p in peers])
 
-        peers[0].update_committee(id_b, [p.instance_b.val_key() for p in peers],
-                                  [p.instance_b.user_key() for p in peers])
+        peers[0].update_committee(id_b, [p.val_key(id_b) for p in peers], [p.user_key(id_b) for p in peers])
         number_of_tx += 2
         del old_peer
 
@@ -272,3 +270,51 @@ class TestSawtoothMethods(unittest.TestCase):
         for p in peers:
             self.assertEqual(number_of_tx, len(p.blocks(id_a)))
             self.assertEqual(number_of_tx, len(p.blocks(id_b)))
+
+    def test_committee_independent_leave(self):
+        peers = make_peer_committees(5)
+        number_of_tx_a = 1
+        number_of_tx_b = 1
+        id_a = peers[0].committee_id_a
+        id_b = peers[0].committee_id_b
+
+        old_instance = peers[-1].instance_b  # we need to drop only one instance make sure other committee is unaffected
+
+        committee_val_b = [p.val_key(id_b) for p in peers]
+        committee_user_b = [p.user_key(id_b) for p in peers]
+
+        peers[0].update_committee(id_b, committee_val_b, committee_user_b)
+        number_of_tx_b += 2
+        del old_instance
+        peers[-1].instance_b = None
+        peers[-1].committee_id_b = None
+
+        tx_a = Transaction(id_a, 1)
+        tx_a.key = 'test'
+        tx_a.value = '999'
+        tx_b = Transaction(id_b, 1)
+        tx_b.key = 'test'
+        tx_b.value = '888'
+
+        peers[-1].submit(tx_a)
+        number_of_tx_a += 1
+        peers[-1].submit(tx_b)  # this should not be accepted
+        time.sleep(3)
+
+        for p in peers:
+            self.assertEqual(number_of_tx_a, len(p.blocks(id_a)))
+
+        for p in peers[:-1]:
+            self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
+
+        self.assertEqual(None, peers[-1].blocks(id_b))
+
+        peers[0].submit(tx_b)  # this should work
+        number_of_tx_b += 1
+        time.sleep(3)
+
+        for p in peers[:-1]:
+            self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
+
+        self.assertEqual(None, peers[-1].blocks(id_b))
+

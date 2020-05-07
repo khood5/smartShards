@@ -240,6 +240,7 @@ class TestSawtoothMethods(unittest.TestCase):
                 if ip != p.ip():  # the peer it's self is not reported in the list
                     self.assertIn("tcp://{}:8800".format(ip), peers_config)
 
+    # make sure that if all old peers (original ones in the committee) crash the committee can proceed
     def test_new_peer_replace_old(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
