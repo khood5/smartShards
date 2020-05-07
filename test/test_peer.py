@@ -167,8 +167,36 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, a_blocks)
             self.assertEqual(number_of_tx, b_blocks)
 
+    def test_peer_leave(self):
+        peers = make_peer_committees(5)
+        number_of_tx = 1
+        id_a = peers[0].committee_id_a
+        id_b = peers[0].committee_id_b
+        old_peer = peers.pop()
+        peers[0].update_committee(id_a, [p.val_key(id_a) for p in peers], [p.user_key(id_a) for p in peers])
+
+        peers[0].update_committee(id_b, [p.val_key(id_b) for p in peers], [p.user_key(id_b) for p in peers])
+        number_of_tx += 2
+        del old_peer
+
+        tx_a = Transaction(id_a, 1)
+        tx_a.key = 'test'
+        tx_a.value = '999'
+        tx_b = Transaction(id_b, 1)
+        tx_b.key = 'test'
+        tx_b.value = '888'
+
+        # check consensus still works
+        peers[-1].submit(tx_a)
+        peers[-1].submit(tx_b)
+        number_of_tx += 1
+        time.sleep(3)
+        for p in peers:
+            self.assertEqual(number_of_tx, len(p.blocks(id_a)))
+            self.assertEqual(number_of_tx, len(p.blocks(id_b)))
+
     # check that consensus in one committee does not effect the other
-    def test_committee_independence(self):
+    def test_committee_independent_confirmation(self):
         peers = make_peer_committees(4)
         number_of_tx = 1
         id_a = peers[0].committee_id_a
@@ -243,34 +271,6 @@ class TestSawtoothMethods(unittest.TestCase):
         for p in committee_b:
             self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
 
-    def test_peer_leave(self):
-        peers = make_peer_committees(5)
-        number_of_tx = 1
-        id_a = peers[0].committee_id_a
-        id_b = peers[0].committee_id_b
-        old_peer = peers.pop()
-        peers[0].update_committee(id_a, [p.val_key(id_a) for p in peers], [p.user_key(id_a) for p in peers])
-
-        peers[0].update_committee(id_b, [p.val_key(id_b) for p in peers], [p.user_key(id_b) for p in peers])
-        number_of_tx += 2
-        del old_peer
-
-        tx_a = Transaction(id_a, 1)
-        tx_a.key = 'test'
-        tx_a.value = '999'
-        tx_b = Transaction(id_b, 1)
-        tx_b.key = 'test'
-        tx_b.value = '888'
-
-        # check consensus still works
-        peers[-1].submit(tx_a)
-        peers[-1].submit(tx_b)
-        number_of_tx += 1
-        time.sleep(3)
-        for p in peers:
-            self.assertEqual(number_of_tx, len(p.blocks(id_a)))
-            self.assertEqual(number_of_tx, len(p.blocks(id_b)))
-
     def test_committee_independent_leave(self):
         peers = make_peer_committees(5)
         number_of_tx_a = 1
@@ -317,4 +317,3 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
 
         self.assertEqual(None, peers[-1].blocks(id_b))
-
