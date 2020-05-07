@@ -244,62 +244,31 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
 
     def test_peer_leave(self):
-        peers = make_peer_committees(7)
-        Aid = 1
-        Bid = 2
+        peers = make_peer_committees(5)
+        number_of_tx = 1
+        id_a = peers[0].committee_id_a
+        id_b = peers[0].committee_id_b
         old_peer = peers.pop()
-        peers[0].update_committee(Aid, [p.instance_a.val_key() for p in peers],
+        peers[0].update_committee(id_a, [p.instance_a.val_key() for p in peers],
                                   [p.instance_a.user_key() for p in peers])
 
-        peers[0].update_committee(Bid, [p.instance_b.val_key() for p in peers],
+        peers[0].update_committee(id_b, [p.instance_b.val_key() for p in peers],
                                   [p.instance_b.user_key() for p in peers])
-
-        tx_A = Transaction(Aid,
-                           3)  # genesis+2 tx added 1 for membership and 1 for admin rights of new peer so length is 3
-        tx_B = Transaction(Bid, 3)
-
-        for p in peers:
-            p.check_confirmation(tx_A)
-            p.check_confirmation(tx_B)
-
+        number_of_tx += 2
         del old_peer
 
-        # check consensus still works
-        peers[-1].submit(tx_A)
-        peers[-1].submit(tx_B)
-        tx_A.tx_number += 1
-        tx_B.tx_number += 1
-        time.sleep(3)
-        for p in peers:
-            p.check_confirmation(tx_A)
-            p.check_confirmation(tx_B)
-
-        # remove multiple members
-        old_peers = peers[:2]
-        peers.pop()
-        peers.pop()
-
-        peers[0].update_committee(Aid, [p.instance_a.val_key() for p in peers],
-                                  [p.instance_a.user_key() for p in peers])
-
-        peers[0].update_committee(Bid, [p.instance_b.val_key() for p in peers],
-                                  [p.instance_b.user_key() for p in peers])
-
-        tx_A.tx_number += 2
-        tx_B.tx_number += 2
-
-        for p in peers:
-            p.check_confirmation(tx_A)
-            p.check_confirmation(tx_B)
-
-        del old_peers
+        tx_a = Transaction(id_a, 1)
+        tx_a.key = 'test'
+        tx_a.value = '999'
+        tx_b = Transaction(id_b, 1)
+        tx_b.key = 'test'
+        tx_b.value = '888'
 
         # check consensus still works
-        peers[-1].submit(tx_A)
-        peers[-1].submit(tx_B)
-        tx_A.tx_number += 1
-        tx_B.tx_number += 1
+        peers[-1].submit(tx_a)
+        peers[-1].submit(tx_b)
+        number_of_tx += 1
         time.sleep(3)
         for p in peers:
-            p.check_confirmation(tx_A)
-            p.check_confirmation(tx_B)
+            self.assertEqual(number_of_tx, len(p.blocks(id_a)))
+            self.assertEqual(number_of_tx, len(p.blocks(id_b)))
