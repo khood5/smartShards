@@ -26,8 +26,8 @@ class Peer:
     def __init__(self, sawtooth_container_a, sawtooth_container_b, Aid, Bid):
         self.instance_a = sawtooth_container_a
         self.instance_b = sawtooth_container_b
-        self.id_a = Aid
-        self.id_b = Bid
+        self.committee_id_a = Aid
+        self.committee_id_b = Bid
         self.neighbors = []
 
     def __del__(self):
@@ -39,7 +39,7 @@ class Peer:
             self.neighbors.append(neighbor_ip)
 
     def make_genesis(self, committee_id, val_keys, user_keys):
-        if committee_id == self.id_a:
+        if committee_id == self.committee_id_a:
             self.instance_a.make_genesis(val_keys, user_keys)
         else:
             self.instance_b.make_genesis(val_keys, user_keys)
@@ -49,62 +49,80 @@ class Peer:
         self.instance_b.start_sawtooth(committee_B_ips)
 
     def submit(self, tx):
-        if tx.quorum_id == self.id_a:
+        if tx.quorum_id == self.committee_id_a:
             self.instance_a.submit_tx(tx.key, tx.value)
 
         else:
             self.instance_b.submit_tx(tx.key, tx.value)
 
     def ip(self, quorum_id):
-        if quorum_id == self.id_a:
+        if quorum_id == self.committee_id_a:
             return self.instance_a.ip()
-        elif quorum_id == self.id_b:
+        elif quorum_id == self.committee_id_b:
             return self.instance_b.ip()
         else:
             peer_logger.error('PEER: ip request for unknown quorum, '
-                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
                                                                                         unknown=quorum_id))
 
     def user_key(self, quorum_id):
-        if quorum_id == self.id_a:
+        if quorum_id == self.committee_id_a:
             return self.instance_a.user_key()
-        elif quorum_id == self.id_b:
+        elif quorum_id == self.committee_id_b:
             return self.instance_b.user_key()
         else:
             peer_logger.error('PEER: user key request for unknown quorum, '
-                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
                                                                                         unknown=quorum_id))
+        return None
 
     def val_key(self, quorum_id):
-        if quorum_id == self.id_a:
+        if quorum_id == self.committee_id_a:
             return self.instance_a.val_key()
-        elif quorum_id == self.id_b:
+        elif quorum_id == self.committee_id_b:
             return self.instance_b.val_key()
         else:
             peer_logger.error('PEER: validator key request for unknown quorum, '
-                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
                                                                                         unknown=quorum_id))
+        return None
 
     def blocks(self, quorum_id):
-        if quorum_id == self.id_a:
+        if quorum_id == self.committee_id_a:
             return self.instance_a.blocks()['data']
-        elif quorum_id == self.id_b:
+        elif quorum_id == self.committee_id_b:
             return self.instance_b.blocks()['data']
         else:
             peer_logger.error('PEER: blocks request for unknown quorum, '
-                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.id_a, self.id_b],
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
                                                                                         unknown=quorum_id))
-        return {}
+        return None
+
+    def sawtooth_api(self, quorum_id, request):
+        if quorum_id == self.committee_id_a:
+            return self.instance_a.sawtooth_api(request)
+        elif quorum_id == self.committee_id_b:
+            return self.instance_b.sawtooth_api(request)
+        else:
+            peer_logger.error('PEER: sawtooth api request for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
+                                                                                        unknown=quorum_id))
+        return None
 
     def peer_join(self, committee_id, committee_ips):
-        if committee_id == self.id_a:
+        if committee_id == self.committee_id_a:
             self.instance_a.join_sawtooth(committee_ips)
         else:
             self.instance_b.join_sawtooth(committee_ips)
 
     def update_committee(self, committee_id, val_keys, user_keys):
         # Needed after a peer is deleted and when a peer joins
-        if committee_id == self.id_a:
+        if committee_id == self.committee_id_a:
             self.instance_a.update_committee(val_keys, user_keys)
         else:
             self.instance_b.update_committee(val_keys, user_keys)        
