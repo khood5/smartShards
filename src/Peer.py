@@ -60,6 +60,19 @@ class Peer:
                                                                                                self.committee_id_b],
                                                                                         unknown=tx.quorum_id))
 
+    def get_tx(self, tx):
+        if tx.quorum_id == self.committee_id_a:
+            return self.instance_a.get_tx(tx.key)
+
+        elif tx.quorum_id == self.committee_id_b:
+            return self.instance_b.get_tx(tx.key)
+        else:
+            peer_logger.error('PEER: tx submitted for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
+                                                                                        unknown=tx.quorum_id))
+        return None
+
     def ip(self, quorum_id):
         if quorum_id == self.committee_id_a:
             return self.instance_a.ip()
