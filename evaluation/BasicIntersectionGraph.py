@@ -176,8 +176,8 @@ if __name__ == '__main__':
     experiments = NUMBER_OF_EXPERIMENTS if args.e is None else args.e
     total_tx = NUMBER_OF_TX if args.t is None else args.t
 
-    sawtooth_container_log_to(Path().home().joinpath('SawtoothContainer.log'))
-    peer_log_to(Path().home().joinpath('Peer.log'))
+    sawtooth_container_log_to(Path().home().joinpath('BasicIntersectionGraph.SawtoothContainer.log'))
+    peer_log_to(Path().home().joinpath('BasicIntersectionGraph.Peer.log'))
 
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
 
