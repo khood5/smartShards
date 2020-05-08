@@ -158,7 +158,7 @@ class SawtoothContainer:
                 sawtooth_logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
                 break
             time.sleep(1)
-
+        time.sleep(1)
         keys = '{}'.format(user_keys)
         keys = keys.strip("[]").replace("\'", "")
         update_permissions = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
