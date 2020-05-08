@@ -79,7 +79,7 @@ LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def sawtooth_container_log_to(path, console_logging=False):
-    handler = logging.handlers.RotatingFileHandler(path,  backupCount=5, maxBytes=LOG_FILE_SIZE)
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     sawtooth_logger.propagate = console_logging
@@ -158,7 +158,7 @@ class SawtoothContainer:
                 sawtooth_logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
                 break
             time.sleep(1)
-
+        time.sleep(1)
         keys = '{}'.format(user_keys)
         keys = keys.strip("[]").replace("\'", "")
         update_permissions = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
@@ -205,7 +205,14 @@ class SawtoothContainer:
 
     # return the blocks in this peers blockchain
     def blocks(self):
-        return self.sawtooth_api('http://localhost:8008/blocks')
+        result = self.sawtooth_api('http://localhost:8008/blocks')
+        try:
+            result['data']
+        except:
+            sawtooth_logger.error("{ip}:getting blocks:  {error}".format(
+                ip=self.ip(), error=result['error']['message']))
+        finally:
+            return result
 
     # returns all currently running process in this peer
     def top(self):

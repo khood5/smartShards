@@ -2,6 +2,8 @@ class Transaction:
     def __init__(self, quorum, tx):
         self.quorum_id = quorum
         self.tx_number = tx
+        self.key = "{}".format(tx)
+        self.value = ""
 
     def id(self):
         # this is the id of the destination quorum

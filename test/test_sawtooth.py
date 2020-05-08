@@ -242,6 +242,7 @@ class TestSawtoothMethods(unittest.TestCase):
                 if ip != p.ip():  # the peer it's self is not reported in the list
                     self.assertIn("tcp://{}:8800".format(ip), peers_config)
 
+    # make sure that if all old peers (original ones in the committee) crash the committee can proceed
     def test_new_peer_replace_old(self):
         peers = make_sawtooth_committee(4)
         blockchain_size = 1
@@ -340,6 +341,20 @@ class TestSawtoothMethods(unittest.TestCase):
         for p in peers:
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
             self.assertEqual('999', p.get_tx('test'))
+
+    def test_concurrent_committees(self):
+        set_a = make_sawtooth_committee(4)
+        set_b = make_sawtooth_committee(4)
+        tx_a = 'test_a'
+        tx_b = 'test_b'
+        set_a[0].submit_tx(tx_a, '999')
+        set_b[0].submit_tx(tx_b, '888')
+        time.sleep(3)
+        for p in set_a:
+            self.assertEqual(2, len(p.blocks()['data']))
+
+        for p in set_b:
+            self.assertEqual(2, len(p.blocks()['data']))
 
 
 if __name__ == '__main__':
