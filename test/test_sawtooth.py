@@ -179,17 +179,18 @@ class TestSawtoothMethods(unittest.TestCase):
             peers_blockchain = len(p.blocks()['data'])
             self.assertEqual(number_of_tx, peers_blockchain)
 
-    def large_committee(self):
+    def test_large_committee(self):
         peers = make_sawtooth_committee(10)
 
-        # makes sure genesis block is in each peer
         peers[0].submit_tx('test', '999')
+        time.sleep(3)
         for p in peers:
             blocks = p.blocks()['data']
             self.assertEqual(2, len(blocks))
 
         peers = make_sawtooth_committee(25)
         peers[0].submit_tx('test', '999')
+        time.sleep(3)
         for p in peers:
             blocks = p.blocks()['data']
             self.assertEqual(2, len(blocks))
