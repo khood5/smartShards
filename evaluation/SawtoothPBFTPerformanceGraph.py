@@ -5,10 +5,10 @@ from src.SawtoothPBFT import sawtooth_container_log_to
 from pathlib import Path
 
 # defaults
-NUMBER_OF_TX = 10
-NUMBER_OF_EXPERIMENTS = 5
-MIN = 4
-MAX = 8
+NUMBER_OF_TX = 20*5
+NUMBER_OF_EXPERIMENTS = 10
+MIN = 10
+MAX = 10
 OUTPUT_FILE = "SawtoothPBFTPerformanceGraph.csv"
 
 
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     starting_size = MIN if args.min is None or args.min < 5 else args.min
     ending_size = MAX if args.max is None else args.max
 
-    sawtooth_container_log_to(Path().home().joinpath('SawtoothContainer.log'))
+    sawtooth_container_log_to(Path().home().joinpath('SawtoothPBFTPerformanceGraph.SawtoothContainer.log'))
 
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
 
