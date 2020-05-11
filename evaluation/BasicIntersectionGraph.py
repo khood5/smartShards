@@ -2,6 +2,7 @@ import time
 import argparse
 from src.SawtoothPBFT import sawtooth_container_log_to, SawtoothContainer
 from src.util import make_sawtooth_committee
+from src.util import make_committees
 from src.structures import Transaction
 from src.Peer import peer_log_to
 from src.Peer import Peer
@@ -34,7 +35,7 @@ def get_avg_for(experiments: int, total_tx: int):
 
     for e in range(experiments):
         print("Setting up experiment {}".format(e))
-        peers = make_committees()
+        peers = make_committees(5, 1)
         results = run_experiment(peers, total_tx)
         confirmation_delays += results["delays"]
         print("Cleaning up experiment {}".format(e))
@@ -43,28 +44,28 @@ def get_avg_for(experiments: int, total_tx: int):
     return {"confirmed": sum(confirmation_delays) / len(confirmation_delays), }
 
 
-def make_committees():
-    committee_a = make_sawtooth_committee(4)
-    committee_b = make_sawtooth_committee(4)
-    committee_c = make_sawtooth_committee(4)
-    committee_d = make_sawtooth_committee(4)
-    committee_e = make_sawtooth_committee(4)
+# def make_committees():
+#     committee_a = make_sawtooth_committee(4)
+#     committee_b = make_sawtooth_committee(4)
+#     committee_c = make_sawtooth_committee(4)
+#     committee_d = make_sawtooth_committee(4)
+#     committee_e = make_sawtooth_committee(4)
 
-    peer_1 = Peer(committee_a[0], committee_b[0], 'a', 'b')
-    peer_2 = Peer(committee_a[1], committee_c[0], 'a', 'c')
-    peer_3 = Peer(committee_a[2], committee_d[0], 'a', 'd')
-    peer_4 = Peer(committee_a[3], committee_e[0], 'a', 'e')
+#     peer_1 = Peer(committee_a[0], committee_b[0], 'a', 'b')
+#     peer_2 = Peer(committee_a[1], committee_c[0], 'a', 'c')
+#     peer_3 = Peer(committee_a[2], committee_d[0], 'a', 'd')
+#     peer_4 = Peer(committee_a[3], committee_e[0], 'a', 'e')
 
-    peer_5 = Peer(committee_b[1], committee_c[1], 'b', 'c')
-    peer_6 = Peer(committee_b[2], committee_d[1], 'b', 'd')
-    peer_7 = Peer(committee_b[3], committee_e[1], 'b', 'e')
+#     peer_5 = Peer(committee_b[1], committee_c[1], 'b', 'c')
+#     peer_6 = Peer(committee_b[2], committee_d[1], 'b', 'd')
+#     peer_7 = Peer(committee_b[3], committee_e[1], 'b', 'e')
 
-    peer_8 = Peer(committee_c[2], committee_d[2], 'c', 'd')
-    peer_9 = Peer(committee_c[3], committee_e[2], 'c', 'e')
+#     peer_8 = Peer(committee_c[2], committee_d[2], 'c', 'd')
+#     peer_9 = Peer(committee_c[3], committee_e[2], 'c', 'e')
 
-    peer_10 = Peer(committee_d[3], committee_e[3], 'd', 'e')
+#     peer_10 = Peer(committee_d[3], committee_e[3], 'd', 'e')
 
-    return [peer_1, peer_2, peer_3, peer_4, peer_5, peer_6, peer_7, peer_8, peer_9, peer_10]
+#     return [peer_1, peer_2, peer_3, peer_4, peer_5, peer_6, peer_7, peer_8, peer_9, peer_10]
 
 
 def run_experiment(peers: list, total_tx: int):
