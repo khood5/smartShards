@@ -45,7 +45,7 @@ def make_committees(n: int, intersections: int):
     keyIndex = 0
     Peers = []
     containers = [SawtoothContainer() for _ in range(size * intersections)]
-    for _ in range (intersections):
+    for _ in range(intersections):
         for i in range(n-1):
             offset = 1
             for _ in range((n-1)-i):
@@ -54,7 +54,7 @@ def make_committees(n: int, intersections: int):
                 keyIndex += 2
 
 
-    for i in range(n-1):
+    for i in range(n):
         indecies = []
         for k in range(len(Peers)):
             if (Peers[k].committee_id_a == i or Peers[k].committee_id_b == i):
