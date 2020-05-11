@@ -45,3 +45,31 @@ def make_peer_committees(size: int, id_a=1, id_b=2):
     peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
 
     return peers
+
+def make_committees(n: int, intersections: int):
+    # n is number of committees
+    size = int((n - 1) * n / 2)
+    keyIndex = 0
+    Peers = []
+    containers = [SawtoothContainer() for _ in range(size * intersections)]
+    for _ in range (intersections):
+        for i in range(n-1):
+            offset = 1
+            for _ in range((n-1)-i):
+                Peers.append(Peer(containers[keyIndex], containers[keyIndex + 1], i, offset + i))
+                offset = offset + 1
+                keyIndex += 2
+
+
+    for i in range(n-1):
+        indecies = []
+        for k in range(len(Peers)):
+            if (Peers[k].committee_id_a == i or Peers[k].committee_id_b == i):
+                indecies.append(k)
+
+        Peers[indecies[0]].make_genesis([Peers[p].val_key(i) for p in indecies], [Peers[p].user_key(i) for p in indecies])
+        committee_ips = [Peers[p].ip(i) for p in indecies]
+        for p in indecies:
+            Peers[p].start_sawtooth(committee_ips)
+
+    return Peers
