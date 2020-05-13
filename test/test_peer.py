@@ -122,16 +122,16 @@ class TestSawtoothMethods(unittest.TestCase):
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
         peers.append(Peer(SawtoothContainer(), SawtoothContainer(), id_a, id_b))
-        committee_ips_a = [p.instance_a.ip() for p in peers]
-        committee_ips_b = [p.instance_b.ip() for p in peers]
+        committee_ips_a = [p.__instance_a.ip() for p in peers]
+        committee_ips_b = [p.__instance_b.ip() for p in peers]
 
         peers[-1].peer_join(id_a, committee_ips_a)
-        peers[0].update_committee(id_a, [p.instance_a.val_key() for p in peers],
-                                  [p.instance_a.user_key() for p in peers])
+        peers[0].update_committee(id_a, [p.__instance_a.val_key() for p in peers],
+                                  [p.__instance_a.user_key() for p in peers])
 
         peers[-1].peer_join(id_b, committee_ips_b)
-        peers[0].update_committee(id_b, [p.instance_b.val_key() for p in peers],
-                                  [p.instance_b.user_key() for p in peers])
+        peers[0].update_committee(id_b, [p.__instance_b.val_key() for p in peers],
+                                  [p.__instance_b.user_key() for p in peers])
         number_of_tx += 2  # two tx added to both committees
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
@@ -234,7 +234,7 @@ class TestSawtoothMethods(unittest.TestCase):
         new_peer.peer_join(id_a, committee_ips_a)
         peers[0].update_committee(id_a, committee_val_a, committee_users_a)
 
-        self.assertEqual(None, new_peer.instance_b)
+        self.assertEqual(None, new_peer.__instance_b)
         self.assertEqual(None, new_peer.committee_id_b)
 
         # confirm membership
@@ -278,7 +278,7 @@ class TestSawtoothMethods(unittest.TestCase):
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
 
-        old_instance = peers[-1].instance_b  # we need to drop only one instance make sure other committee is unaffected
+        old_instance = peers[-1].__instance_b  # we need to drop only one instance make sure other committee is unaffected
 
         committee_val_b = [p.val_key(id_b) for p in peers]
         committee_user_b = [p.user_key(id_b) for p in peers]
@@ -286,7 +286,7 @@ class TestSawtoothMethods(unittest.TestCase):
         peers[0].update_committee(id_b, committee_val_b, committee_user_b)
         number_of_tx_b += 2
         del old_instance
-        peers[-1].instance_b = None
+        peers[-1].__instance_b = None
         peers[-1].committee_id_b = None
 
         tx_a = Transaction(id_a, 1)

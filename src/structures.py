@@ -1,5 +1,5 @@
 class Transaction:
-    def __init__(self, quorum, tx):
+    def __init__(self, quorum, tx=0):
         self.quorum_id = quorum
         self.tx_number = tx
         self.key = "{}".format(tx)

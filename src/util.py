@@ -1,6 +1,26 @@
 import docker as dockerapi
 from src.SawtoothPBFT import SawtoothContainer
 from src.Peer import Peer
+import os
+import logging
+import logging.handlers
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-2s %(message)s',
+    level=logging.INFO,
+    datefmt='%H:%M:%S')
+util_logger = logging.getLogger(__name__)
+
+LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+
+
+def util_log_to(path, console_logging=False):
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
+    formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
+    handler.setFormatter(formatter)
+    util_logger.propagate = console_logging
+    util_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    util_logger.addHandler(handler)
 
 
 def stop_all_containers():
@@ -46,30 +66,21 @@ def make_peer_committees(size: int, id_a=1, id_b=2):
 
     return peers
 
-def make_committees(n: int, intersections: int):
-    # n is number of committees
-    size = int((n - 1) * n / 2)
-    keyIndex = 0
-    Peers = []
-    containers = [SawtoothContainer() for _ in range(size * intersections)]
-    for _ in range(intersections):
-        for i in range(n-1):
-            offset = 1
-            for _ in range((n-1)-i):
-                Peers.append(Peer(containers[keyIndex], containers[keyIndex + 1], i, offset + i))
-                offset = offset + 1
-                keyIndex += 2
 
+def make_intersecting_committees(number_of_committees: int, intersections: int):
+    committees = []
+    committee_size = (number_of_committees - 1) * intersections
+    for _ in range(number_of_committees):
+        committees.append(make_sawtooth_committee(committee_size))
 
-    for i in range(n):
-        indecies = []
-        for k in range(len(Peers)):
-            if (Peers[k].committee_id_a == i or Peers[k].committee_id_b == i):
-                indecies.append(k)
+    peers = []
+    for row in range(len(committees)):
+        for column in range(row, committee_size):
+            peers.append(Peer(committees[row][column], committees[column + 1][row], row, column + 1), )
+            util_logger.info("In committee {a} committee Member {a_ip} matches {b_ip} in committee {b}".format(
+                a=row,
+                a_ip=committees[row][column].ip(),
+                b_ip=committees[column + 1][row].ip(),
+                b=column + 1))
 
-        Peers[indecies[0]].make_genesis([Peers[p].val_key(i) for p in indecies], [Peers[p].user_key(i) for p in indecies])
-        committee_ips = [Peers[p].ip(i) for p in indecies]
-        for p in indecies:
-            Peers[p].start_sawtooth(committee_ips)
-
-    return Peers
+    return peers
