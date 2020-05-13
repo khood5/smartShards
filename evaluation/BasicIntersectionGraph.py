@@ -2,7 +2,7 @@ import time
 import argparse
 from src.SawtoothPBFT import sawtooth_container_log_to, SawtoothContainer
 from src.util import make_sawtooth_committee
-from src.util import make_committees
+from src.util import make_intersecting_committees
 from src.structures import Transaction
 from src.Peer import peer_log_to
 from src.Peer import Peer
@@ -37,13 +37,14 @@ def get_avg_for(experiments: int, total_tx: int, committeees: int, intersections
 
     for e in range(experiments):
         print("Setting up experiment {}".format(e))
-        peers = make_committees(committeees, intersections)
+        peers = make_intersecting_committees(committeees, intersections)
         results = run_experiment(peers, total_tx, committeees)
         confirmation_delays += results["delays"]
         print("Cleaning up experiment {}".format(e))
         del peers
 
     return {"confirmed": sum(confirmation_delays) / len(confirmation_delays), }
+
 
 def run_experiment(peers: list, total_tx: int, n: int):
     print("Running", end='', flush=True)
