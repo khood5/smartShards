@@ -7,7 +7,7 @@ from src.util import make_intersecting_committees
 from src.structures import Transaction
 
 
-class TestSawtoothMethods(unittest.TestCase):
+class TestUtilMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
@@ -121,3 +121,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
         for p in peers:
             del p
+
+
+if __name__ == '__main__':
+    unittest.main()
