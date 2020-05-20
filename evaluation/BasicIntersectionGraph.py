@@ -1,19 +1,17 @@
 import time
 import argparse
-from src.SawtoothPBFT import sawtooth_container_log_to, SawtoothContainer
-from src.util import make_sawtooth_committee
+from src.SawtoothPBFT import sawtooth_container_log_to
 from src.util import make_intersecting_committees
 from src.structures import Transaction
 from src.Peer import peer_log_to
-from src.Peer import Peer
 from pathlib import Path
 
 # defaults
 NUMBER_OF_TX = 20
-NUMBER_OF_EXPERIMENTS = 10
+NUMBER_OF_EXPERIMENTS = 2
 NUMBER_OF_INTERSECTIONS = 1
 MIN = 5
-MAX = 5
+MAX = 6
 OUTPUT_FILE = "BasicIntersectionGraph.csv"
 
 
@@ -21,25 +19,25 @@ OUTPUT_FILE = "BasicIntersectionGraph.csv"
 def make_graph_data(outfile: str, start_size: int, end_size: int, experiments: int, total_tx: int, intersections: int):
     out = open(outfile, 'w')
     print("Outputting to {}".format(outfile))
-    out.write("Committee size, avg delay  (sec)\n")
-    for committee_size in range(start_size, end_size + 1):
+    out.write("Number of Committee, avg delay  (sec), Intersection\n")
+    for number_of_committee in range(start_size, end_size + 1):
         print("---------------------------------------------------------------------------------------")
-        print("Starting experiments for committee size {}".format(4))
-        avgs = get_avg_for(experiments, total_tx, committee_size, intersections)
-        print("Experiments for committee size {} ended".format(4))
+        print("Starting experiments for committee size {}".format(number_of_committee))
+        avgs = get_avg_for(experiments, total_tx, number_of_committee, intersections)
+        print("Experiments for committee size {} ended".format(number_of_committee))
         print("---------------------------------------------------------------------------------------")
-        out.write("{s}, {c}\n".format(s=4, c=avgs["confirmed"]))
+        out.write("{s}, {c}, {i}\n".format(s=number_of_committee, c=avgs["confirmed"], i=intersections))
     out.close()
 
 
 # runs each experiment and calc avgs (i.e. creates one data point)
 # is responsible for creating and destroying peers
-def get_avg_for(experiments: int, total_tx: int, committeees: int, intersections: int):
+def get_avg_for(experiments: int, total_tx: int, number_of_committees: int, intersections: int):
     confirmation_delays = []
 
     for e in range(experiments):
         print("Setting up experiment {}".format(e))
-        peers = make_intersecting_committees(committeees, intersections)
+        peers = make_intersecting_committees(number_of_committees, intersections)
         results = run_experiment(peers, total_tx)
         confirmation_delays += results["delays"]
         print("Cleaning up experiment {}".format(e))
@@ -59,31 +57,25 @@ def run_experiment(peers: list, total_tx: int):
             committee_ids.append(p.committee_id_b)
 
     for i in range(total_tx):
-        new_tx = []
+        submit_tx = {}
         for id in committee_ids:
             tx = Transaction(id, 1)
             tx.key = 'test{}'.format(i)
             tx.value = '999'
-            for peer_index in range(len(peers)):
-                if peers[peer_index].committee_id_a == id or peers[peer_index].committee_id_b == id:
-                    peers[peer_index].submit(tx)
-                    new_tx.append(tx)
+            for p in peers:
+                if p.committee_id_a == id or p.committee_id_b == id:
+                    submit_tx[id] = [p, tx]
                     break
-
+        for t in submit_tx:
+            submit_tx[t][0].submit(submit_tx[t][1])
         start_confirmed = time.time()
-
         confirmed = False
         while not confirmed:
             print('.', end='', flush=True)
             confirmed = True
-
-            for id in committee_ids:
-                for peer_index in range(len(peers)):
-                    if peers[peer_index].committee_id_a == id or \
-                       peers[peer_index].committee_id_b == id:
-
-                        if peers[peer_index].get_tx(new_tx[id]) != '999':
-                            confirmed = False
+            for t in submit_tx:
+                if submit_tx[t][0].get_tx(submit_tx[t][1]) != '999':
+                    confirmed = False
 
         confirmation_delays.append(time.time() - start_confirmed)
     print()
@@ -101,11 +93,11 @@ if __name__ == '__main__':
     parser.add_argument('-t', type=int,
                         help='Total number of transactions to submit')
     parser.add_argument('-min', type=int,
-                        help='Starting . Default 5')
+                        help='Starting number of committees. Default 5')
     parser.add_argument('-max', type=int,
-                        help='Max committee size. Default 5')
+                        help='Max number of committees. Default 5')
     parser.add_argument('-i', type=int,
-                        help='Total number of committee intersections')
+                        help='Total number of committee intersections. Default 1')
     args = parser.parse_args()
 
     output_file = Path(args.o) if args.o is not None else Path().home().joinpath(OUTPUT_FILE)
