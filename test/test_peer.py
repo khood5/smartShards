@@ -9,7 +9,7 @@ import unittest
 import warnings
 
 
-class TestSawtoothMethods(unittest.TestCase):
+class TestPeerMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
