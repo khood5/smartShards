@@ -278,7 +278,8 @@ class TestPeerMethods(unittest.TestCase):
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
 
-        old_instance = peers[-1].__instance_b  # we need to drop only one instance make sure other committee is unaffected
+        old_instance = peers[
+            -1].__instance_b  # we need to drop only one instance make sure other committee is unaffected
 
         committee_val_b = [p.val_key(id_b) for p in peers]
         committee_user_b = [p.user_key(id_b) for p in peers]
@@ -317,3 +318,8 @@ class TestPeerMethods(unittest.TestCase):
             self.assertEqual(number_of_tx_b, len(p.blocks(id_b)))
 
         self.assertEqual(None, peers[-1].blocks(id_b))
+
+
+if __name__ == '__main__':
+    print("RUNNING {} TESTS".format(Peer().__class__.__name__))
+    unittest.main()
