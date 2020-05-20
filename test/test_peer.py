@@ -321,5 +321,4 @@ class TestPeerMethods(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    print("RUNNING {} TESTS".format(Peer().__class__.__name__))
     unittest.main()
