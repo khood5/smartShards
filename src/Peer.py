@@ -1,4 +1,3 @@
-from src.SawtoothPBFT import SawtoothContainer
 import os
 import logging
 import logging.handlers
