@@ -359,5 +359,4 @@ class TestSawtoothMethods(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    print("RUNNING {} TESTS".format(SawtoothContainer().__class__.__name__))
     unittest.main()
