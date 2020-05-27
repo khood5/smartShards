@@ -1,4 +1,3 @@
-from json import JSONDecodeError
 import docker
 import json
 import time
@@ -93,11 +92,11 @@ def append_keys(keys, command):
 
 
 class SawtoothContainer:
+    __client = docker.from_env()
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
     def __init__(self, network='bridge'):
-        self.__client = docker.from_env()
         self.__container_network = network
         self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=self.__container_network)
         self.__ip_addr = self.run_command('hostname -i')

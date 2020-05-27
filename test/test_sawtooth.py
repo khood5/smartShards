@@ -188,7 +188,7 @@ class TestSawtoothMethods(unittest.TestCase):
             blocks = p.blocks()['data']
             self.assertEqual(2, len(blocks))
 
-        peers = make_sawtooth_committee(25)
+        peers = make_sawtooth_committee(26)
         peers[0].submit_tx('test', '999')
         time.sleep(3)
         for p in peers:
@@ -349,11 +349,14 @@ class TestSawtoothMethods(unittest.TestCase):
         tx_a = 'test_a'
         tx_b = 'test_b'
         set_a[0].submit_tx(tx_a, '999')
-        set_b[0].submit_tx(tx_b, '888')
         time.sleep(3)
         for p in set_a:
             self.assertEqual(2, len(p.blocks()['data']))
+        for p in set_b:
+            self.assertEqual(1, len(p.blocks()['data']))
 
+        set_b[0].submit_tx(tx_b, '888')
+        time.sleep(3)
         for p in set_b:
             self.assertEqual(2, len(p.blocks()['data']))
 
