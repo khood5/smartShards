@@ -114,5 +114,4 @@ if __name__ == '__main__':
     peer_log_to(Path().home().joinpath('BasicIntersectionGraph.Peer.log'))
 
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
-
     make_graph_data(output_file, starting_size, ending_size, experiments, total_tx, intersections)
