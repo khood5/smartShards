@@ -92,11 +92,12 @@ def append_keys(keys, command):
 
 
 class SawtoothContainer:
+    __client = docker.from_env()
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
     def __init__(self):
-        self.__client = docker.from_env()
+        # self.__client = docker.from_env()
         self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True)
         self.__ip_addr = self.run_command('hostname -i')
         self.run_command('sawtooth keygen')
