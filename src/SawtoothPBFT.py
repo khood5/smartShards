@@ -1,4 +1,3 @@
-from json import JSONDecodeError
 import docker
 import json
 import time
@@ -55,7 +54,7 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 15
+UPDATE_TIMEOUT = 90
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
@@ -93,13 +92,13 @@ def append_keys(keys, command):
 
 
 class SawtoothContainer:
+    __client = docker.from_env()
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
-    def __init__(self, network='bridge'):
-        self.__client = docker.from_env()
-        self.__container_network = network
-        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=self.__container_network)
+    def __init__(self):
+        # self.__client = docker.from_env()
+        self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True)
         self.__ip_addr = self.run_command('hostname -i')
         self.run_command('sawtooth keygen')
         self.run_command('sawadm keygen')
@@ -124,10 +123,9 @@ class SawtoothContainer:
 
         self.run_command(SAWTOOTH_GENESIS_COMMANDS["make_genesis"])
 
-    # joins a PBFT committee
+    # starts each of the sawtooth components
     # see https://sawtooth.hyperledger.org/docs/core/nightly/1-2/app_developers_guide/ubuntu_test_network.html ~ step 5
-    def join_sawtooth(self, neighbours_ips: list):
-        assert (len(neighbours_ips) >= 4)  # any less and joining is not possible
+    def start_sawtooth(self, neighbours_ips: list):
         ips = []
         for ip in neighbours_ips:
             if ip != self.__ip_addr:
@@ -140,6 +138,11 @@ class SawtoothContainer:
         self.run_service(SAWTOOTH_START_COMMANDS["settings_processor"])
         self.run_service(SAWTOOTH_START_COMMANDS["client"])
         self.run_service(SAWTOOTH_START_COMMANDS["pbft"].format(ip=self.ip()))
+
+    # joins a PBFT committee that already exists
+    def join_sawtooth(self, ips: list):
+        assert (len(ips) >= 4)  # any less and joining is not possible
+        self.start_sawtooth(ips)
 
     # this re-config the committee so that all peers in keys can A vote and B edit settings
     def update_committee(self, validator_keys: list, user_keys: list):
@@ -191,10 +194,6 @@ class SawtoothContainer:
             return None
         return self.__container.id
 
-    # returns the network the container was connected to
-    def attached_network(self):
-        return self.__container_network
-
     # all peers communicate via a virtual network hosted by docker. Docker runs DHCP and will assign each peer a new IP
     # peers can access other peers by there ip address and only there ip address, there is no DNS
     def ip(self):
@@ -236,11 +235,4 @@ class SawtoothContainer:
         command = 'curl -sS {}'.format(request)
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
         sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
-        try:
-            return json.loads(result)
-        except JSONDecodeError as e:
-            logging.info("{ip}: had an API error; Is PBFT running?".format(ip=self.ip()), e)
-        finally:
-            return {}
-
-
+        return json.loads(result)
