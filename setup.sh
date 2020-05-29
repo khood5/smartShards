@@ -8,7 +8,7 @@ apt-get remove docker docker-engine docker.io containerd runc
 
 # install docker and python3
 apt-get update
-apt-get - y \
+apt-get -y \
     install \
     apt-transport-https \
     ca-certificates \
