@@ -27,6 +27,7 @@ apt-get -y install docker-ce docker-ce-cli containerd.io
 # add user to docker group (remove need for sudo access to use API)
 groupadd docker
 usermod -aG docker $USER
+newgrp docker
 
 # install docker API
 pip3 install docker
@@ -35,3 +36,6 @@ pip3 install docker
 docker build -t sawtooth:final -f  ./base-node.Dockerfile .
 
 export PYTHONPATH=$PYTHONPATH:$PWD
+
+echo "You may need to run the following comands manually, then log out and back in\n"
+echo "sudo groupadd docker; sudo usermod -aG docker $USER; newgrp docker"
