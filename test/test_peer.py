@@ -197,7 +197,7 @@ class TestPeerMethods(unittest.TestCase):
 
     # check that consensus in one committee does not effect the other
     def test_committee_independent_confirmation(self):
-        peers = make_peer_committees(4)
+        peers = make_peer_committees(5)
         number_of_tx = 1
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
