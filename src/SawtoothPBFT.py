@@ -210,6 +210,9 @@ class SawtoothContainer:
     def top(self):
         return self.__container.top()
 
+    def attached_network(self):
+        return self.__container_network
+
     # run a command in a container, will return the output of the command
     def run_command(self, command: str):
         sawtooth_logger.info("{ip}:running command:  {command}".format(ip=self.ip(), command=command))
