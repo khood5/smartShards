@@ -332,7 +332,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
             # remove old peer
             old_peer = peers.pop(0)
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
+            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
             del old_peer
 
