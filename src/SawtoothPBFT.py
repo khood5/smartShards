@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+
 import docker
 import json
 import time
@@ -232,11 +234,6 @@ class SawtoothContainer:
         command = 'curl -sS {}'.format(request)
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
         sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
-        try:
-            return json.loads(result)
-        except JSONDecodeError as e:
-            logging.info("{ip}: had an API error; Is PBFT running?".format(ip=self.ip()), e)
-        finally:
-            return {}
+        return json.loads(result)
 
 
