@@ -54,7 +54,7 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 15
+UPDATE_TIMEOUT = 90
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
@@ -123,10 +123,9 @@ class SawtoothContainer:
 
         self.run_command(SAWTOOTH_GENESIS_COMMANDS["make_genesis"])
 
-    # joins a PBFT committee
+    # starts each of the sawtooth components
     # see https://sawtooth.hyperledger.org/docs/core/nightly/1-2/app_developers_guide/ubuntu_test_network.html ~ step 5
-    def join_sawtooth(self, neighbours_ips: list):
-        assert (len(neighbours_ips) >= 4)  # any less and joining is not possible
+    def start_sawtooth(self, neighbours_ips: list):
         ips = []
         for ip in neighbours_ips:
             if ip != self.__ip_addr:
@@ -139,6 +138,11 @@ class SawtoothContainer:
         self.run_service(SAWTOOTH_START_COMMANDS["settings_processor"])
         self.run_service(SAWTOOTH_START_COMMANDS["client"])
         self.run_service(SAWTOOTH_START_COMMANDS["pbft"].format(ip=self.ip()))
+
+    # joins a PBFT committee that already exists
+    def join_sawtooth(self, ips: list):
+        assert (len(ips) >= 4)  # any less and joining is not possible
+        self.start_sawtooth(ips)
 
     # this re-config the committee so that all peers in keys can A vote and B edit settings
     def update_committee(self, validator_keys: list, user_keys: list):
@@ -209,9 +213,6 @@ class SawtoothContainer:
     # returns all currently running process in this peer
     def top(self):
         return self.__container.top()
-
-    def attached_network(self):
-        return self.__container_network
 
     # run a command in a container, will return the output of the command
     def run_command(self, command: str):
