@@ -44,8 +44,8 @@ class Peer:
             self.__instance_b.make_genesis(val_keys, user_keys)
 
     def start_sawtooth(self, committee_A_ips, committee_B_ips):
-        self.__instance_a.join_sawtooth(committee_A_ips)
-        self.__instance_b.join_sawtooth(committee_B_ips)
+        self.__instance_a.start_sawtooth(committee_A_ips)
+        self.__instance_b.start_sawtooth(committee_B_ips)
 
     def submit(self, tx):
         if tx.quorum_id == self.committee_id_a:

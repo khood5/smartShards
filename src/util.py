@@ -98,3 +98,45 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
         intersecting_peers = make_single_intersection(committee_section, section_size)
         peers += intersecting_peers
     return peers
+
+
+# makes 2 quorums each with size number of peers (with whole committee intersection i.e. each peer is in both quorums)
+def make_peer_committees(size: int, id_a=1, id_b=2):
+    containers_a = make_sawtooth_committee(size)
+    containers_b = make_sawtooth_committee(size)
+    peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
+
+    return peers
+
+
+def make_single_intersection(instances: list, committee_size: int):
+    peers = []
+    for row in range(committee_size + 1):
+        for column in range(row, committee_size):
+            peers.append(Peer(instances[row][column], instances[column + 1][row], row, column + 1), )
+            util_logger.info("In committee {a} committee Member {a_ip} matches {b_ip} in committee {b}".format(
+                a=row,
+                a_ip=instances[row][column].ip(),
+                b_ip=instances[column + 1][row].ip(),
+                b=column + 1))
+
+    return peers
+
+
+def make_intersecting_committees(number_of_committees: int, intersections: int):
+    pbft_instance = []
+    committee_size = (number_of_committees - 1) * intersections
+    for _ in range(number_of_committees):
+        pbft_instance.append(make_sawtooth_committee(committee_size))
+
+    peers = []
+    # for committees with more then one intersection they are made by combining a series
+    # of single intersecting committees, each entry in the series is a section
+    for intersection in range(intersections):
+        section_size = int(committee_size/intersections)
+        start_of_section = section_size * intersection
+        end_of_section = start_of_section + section_size + 1  # one past last element
+        committee_section = [c[start_of_section:end_of_section] for c in pbft_instance]
+        intersecting_peers = make_single_intersection(committee_section, section_size)
+        peers += intersecting_peers
+    return peers
