@@ -1,5 +1,5 @@
 from src.Peer import Peer
-from src.SawtoothPBFT import SawtoothContainer
+from src.SawtoothPBFT import SawtoothContainer, DEFAULT_DOCKER_NETWORK
 from src.util import make_peer_committees
 from src.util import stop_all_containers
 from src.structures import Transaction
@@ -34,6 +34,15 @@ class TestPeerMethods(unittest.TestCase):
         self.assertEqual(p.committee_id_b, id_b)
         self.assertEqual(p.ip(id_a), a.ip())
         self.assertEqual(p.ip(id_b), b.ip())
+        self.assertEqual(p.attached_network(), DEFAULT_DOCKER_NETWORK)
+
+        del a, b, p
+        a = SawtoothContainer('host')
+        b = SawtoothContainer('host')
+        id_a = 1
+        id_b = 2
+        p = Peer(a, b, id_a, id_b)
+        self.assertEqual(p.attached_network(), 'host')
 
     def test_committee_setup_single(self):
         id_a = 1

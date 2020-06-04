@@ -143,3 +143,8 @@ class Peer:
             self.__instance_a.update_committee(val_keys, user_keys)
         else:
             self.__instance_b.update_committee(val_keys, user_keys)
+
+    def attached_network(self):
+        if self.__instance_a.attached_network() != self.__instance_b.attached_network():
+            peer_logger.warning('PEER: containers attached to different networks, only a is given')
+        return self.__instance_a.attached_network()

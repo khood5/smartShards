@@ -16,6 +16,7 @@ sawtooth_logger = logging.getLogger(__name__)
 
 # name of the docker image to run
 DOCKER_IMAGE = "sawtooth:final"
+DEFAULT_DOCKER_NETWORK = 'bridge'
 
 # key locations in container
 USER_KEY = {"priv": "/root/.sawtooth/keys/root.priv", "pub": "/root/.sawtooth/keys/root.pub"}
@@ -98,7 +99,7 @@ class SawtoothContainer:
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
-    def __init__(self, network='bridge'):
+    def __init__(self, network=DEFAULT_DOCKER_NETWORK):
         self.__container_network = network
         self.__container = self.__client.containers.run(DOCKER_IMAGE, detach=True, network=self.__container_network)
         self.__ip_addr = self.run_command('hostname -i')
