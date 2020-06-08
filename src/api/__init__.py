@@ -2,13 +2,15 @@ from flask import Flask
 from flask_wtf.csrf import CsrfProtect
 from src.Peer import Peer
 from src.api.single_peer import SinglePeer
-from src.api.routes import add_routes, SECRET, PBFT_INSTANCES, DOCKER_NETWORK
+from src.api.routes import add_routes
+from src.api.routes import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, NEIGHBOURS
 from src.SawtoothPBFT import SawtoothContainer, DEFAULT_DOCKER_NETWORK
 import os
 
 # flask requires that we make a CSRF key for use on forms (ex: settings)
 # this makes a random key when the app starts.
 SECRET_KEY = os.urandom(32)
+
 
 def create_app():
     new_app = Flask(__name__)
@@ -20,7 +22,7 @@ def create_app():
 
     # stores the list of quorums and the neighbours in each by ip and port
     # ex: 'quorum_a':{IP_ADDRESS_KEY:192.168.1.1, PORT_KEY:8080}
-    new_app.config['neighbours'] = {}
+    new_app.config[NEIGHBOURS] = {}
 
     add_routes(new_app)
     return new_app

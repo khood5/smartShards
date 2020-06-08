@@ -8,18 +8,16 @@ import docker
 import time
 
 # keys for json values on various requests
-JSON_KEYS = {
-    'user': 'user_key',
-    'val': 'validator_key',
-    'ip': 'ip_address'
-}
-
-IP_ADDRESS_KEY = 'ip_address'
-PORT_KEY = 'port'
+USER_KEY = 'user_key'
+VALIDATOR_KEY = 'validator_key'
+IP_ADDRESS = 'ip_address'
+PORT = 'port'
 NEIGHBOURS = 'neighbours'
 SECRET = 'SECRET_KEY'
 PBFT_INSTANCES = 'pbft'
 DOCKER_NETWORK = 'network'
+QUORUM_ID = 'quorum_id'
+
 
 def add_routes(app):
     @app.route('/')
@@ -56,3 +54,12 @@ def add_routes(app):
         client = docker.from_env()
         system_info.update(client.version())
         return jsonify(system_info)
+
+    # joins peers first instance (a) to a committee
+    @app.route('/add_to/', methods=['POST'])
+    def add_to():
+        req = request.get_json(force=True)
+        quorum = req[QUORUM_ID]
+
+
+        # my_peer join a

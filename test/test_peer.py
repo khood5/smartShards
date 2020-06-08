@@ -1,12 +1,21 @@
 from src.Peer import Peer
 from src.SawtoothPBFT import SawtoothContainer, DEFAULT_DOCKER_NETWORK
-from src.util import make_peer_committees
+from src.util import make_sawtooth_committee
 from src.util import stop_all_containers
 from src.structures import Transaction
 import docker as dockerapi
 import time
 import unittest
 import warnings
+
+
+# makes 2 quorums each with size number of peers (with whole committee intersection i.e. each peer is in both quorums)
+def make_peer_committees(size: int, id_a=1, id_b=2):
+    containers_a = make_sawtooth_committee(size)
+    containers_b = make_sawtooth_committee(size)
+    peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
+
+    return peers
 
 
 class TestPeerMethods(unittest.TestCase):

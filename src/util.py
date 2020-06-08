@@ -58,15 +58,6 @@ def make_sawtooth_committee(size: int):
     return peers
 
 
-# makes 2 quorums each with size number of peers (with whole committee intersection i.e. each peer is in both quorums)
-def make_peer_committees(size: int, id_a=1, id_b=2):
-    containers_a = make_sawtooth_committee(size)
-    containers_b = make_sawtooth_committee(size)
-    peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
-
-    return peers
-
-
 def make_single_intersection(instances: list, committee_size: int):
     peers = []
     for row in range(committee_size + 1):
@@ -91,7 +82,7 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
     # for committees with more then one intersection they are made by combining a series
     # of single intersecting committees, each entry in the series is a section
     for intersection in range(intersections):
-        section_size = int(committee_size/intersections)
+        section_size = int(committee_size / intersections)
         start_of_section = section_size * intersection
         end_of_section = start_of_section + section_size + 1  # one past last element
         committee_section = [c[start_of_section:end_of_section] for c in pbft_instance]
