@@ -1,7 +1,7 @@
 import unittest
 import warnings
 import time
-import docker as dockerapi
+import docker as docker_api
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY
 from src.SawtoothPBFT import USER_KEY
@@ -14,7 +14,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
         if len(docker.containers.list()) is not 0:
             self.skipTest("There should be no docker containers currently running, there was {} found.\n"
                           "Run \"docker ps\" to see all running containers".format(len(docker.containers.list())))
@@ -24,7 +24,7 @@ class TestSawtoothMethods(unittest.TestCase):
         stop_all_containers()
 
     def test_start_container(self):
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
 
         # test that once an instance is started that it has an id, ip and key
         sawtooth_instance = SawtoothContainer()
@@ -66,7 +66,7 @@ class TestSawtoothMethods(unittest.TestCase):
         docker.close()
 
     def test_kill_container(self):
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
 
         sawtooth_instance = SawtoothContainer()
         self.assertEqual(1, len(docker.containers.list()))
@@ -89,7 +89,7 @@ class TestSawtoothMethods(unittest.TestCase):
         docker.close()
 
     def test_committee_init_setup(self):
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
 
         # a committee needs a min of 4 members. Any less peers can not join or leave cleanly and they can not confirm
         # new transactions

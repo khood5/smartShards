@@ -27,7 +27,6 @@ class Peer:
         self.__instance_b = sawtooth_container_b
         self.committee_id_a = Aid
         self.committee_id_b = Bid
-        self.neighbors = []
 
     def __del__(self):
         del self.__instance_a

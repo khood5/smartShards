@@ -2,7 +2,7 @@ from flask import Flask
 from flask_wtf.csrf import CsrfProtect
 from src.Peer import Peer
 from src.api.routes import add_routes
-from src.api.routes import SECRET, PEER, DOCKER_NETWORK, QUORUMS
+from src.api.constants import SECRET, PEER, DOCKER_NETWORK, QUORUMS
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 import os
 

@@ -1,7 +1,7 @@
 import unittest
 import warnings
 import time
-import docker as dockerapi
+import docker as docker_api
 from src.util import stop_all_containers
 from src.util import make_intersecting_committees
 from src.structures import Transaction
@@ -11,7 +11,7 @@ class TestUtilMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
         if len(docker.containers.list()) is not 0:
             self.skipTest("There should be no docker containers currently running, there was {} found.\n"
                           "Run \"docker ps\" to see all running containers".format(len(docker.containers.list())))

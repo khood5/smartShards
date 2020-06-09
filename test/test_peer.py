@@ -3,7 +3,7 @@ from src.SawtoothPBFT import SawtoothContainer, DEFAULT_DOCKER_NETWORK
 from src.util import make_sawtooth_committee
 from src.util import stop_all_containers
 from src.structures import Transaction
-import docker as dockerapi
+import docker as docker_api
 import time
 import unittest
 import warnings
@@ -22,7 +22,7 @@ class TestPeerMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
-        docker = dockerapi.from_env()
+        docker = docker_api.from_env()
         if len(docker.containers.list()) is not 0:
             self.skipTest("There should be no docker containers currently running, there was {} found.\n"
                           "Run \"docker ps\" to see all running containers".format(len(docker.containers.list())))

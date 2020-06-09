@@ -1,9 +1,11 @@
-import docker as dockerapi
+import docker as docker_api
+from src.api.constants import IP_ADDRESS, QUORUMS, QUORUM_ID, PORT
 from src.SawtoothPBFT import SawtoothContainer
 from src.Peer import Peer
 import os
 import logging
 import logging.handlers
+import requests
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -12,6 +14,7 @@ logging.basicConfig(
 util_logger = logging.getLogger(__name__)
 
 LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+URL_REQUEST = "http://{hostname}:{port}/"
 
 
 def util_log_to(path, console_logging=False):
@@ -24,7 +27,7 @@ def util_log_to(path, console_logging=False):
 
 
 def stop_all_containers():
-    client = dockerapi.from_env()
+    client = docker_api.from_env()
     for c in client.containers.list():
         c.stop(timeout=0)
     client.close()
@@ -32,7 +35,7 @@ def stop_all_containers():
 
 # gets a list of all running container ids
 def get_container_ids():
-    client = dockerapi.from_env()
+    client = docker_api.from_env()
     ids = []
     for c in client.containers.list():
         ids.append(c.id)
@@ -89,3 +92,25 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
         intersecting_peers = make_single_intersection(committee_section, section_size)
         peers += intersecting_peers
     return peers
+
+
+# this function is made to work with a flask app and cannot be used with out passing one to it as app
+def forward(app, url_subdirectory: str, quorum_id: str, json_data):
+    for this_quorum in app.config[QUORUMS]:
+        for intersecting_quorum in app.config[QUORUMS][this_quorum]:
+            if intersecting_quorum[QUORUM_ID] == quorum_id:
+                url = URL_REQUEST.format(hostname=intersecting_quorum[IP_ADDRESS],
+                                         port=intersecting_quorum[PORT])
+                url += url_subdirectory
+                app.logger.info("make_genesis requested in quorum this peer is not a member of forwarding to "
+                                "{}".format(url))
+                forwarding_request = None
+                try:
+                    forwarding_request = requests.post(url, json=json_data)
+                except ConnectionError as e:
+                    app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[IP_ADDRESS],
+                                                                        port=intersecting_quorum[PORT]))
+                    app.logger.error(e)
+                finally:
+                    pass
+                app.logger.info("response form forward is {}".format(forwarding_request))
