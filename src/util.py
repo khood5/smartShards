@@ -102,7 +102,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                 url = URL_REQUEST.format(hostname=intersecting_quorum[IP_ADDRESS],
                                          port=intersecting_quorum[PORT])
                 url += url_subdirectory
-                app.logger.info("make_genesis requested in quorum this peer is not a member of forwarding to "
+                app.logger.info("request in quorum this peer is not a member of forwarding to "
                                 "{}".format(url))
                 forwarding_request = None
                 try:

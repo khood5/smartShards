@@ -1,50 +1,30 @@
-from src.api import forms
-from src.api.constants import NEIGHBOURS, PEER, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT
+from src.api.constants import NEIGHBOURS, PEER, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID
 from src.api.constants import ROUTE_EXECUTION_FAILED, IP_ADDRESS, VALIDATOR_KEY, USER_KEY
 from src.SawtoothPBFT import SawtoothContainer
 from src.Peer import Peer
+from src.structures import Transaction
 from src.util import forward
-from flask import render_template, jsonify, request
+from flask import jsonify, request
 import socket
-import docker
+
 
 def add_routes(app):
-    @app.route('/', methods=['GET', 'POST'])
-    @app.route('/settings', methods=['GET', 'POST'])
-    def settings():
-        peer_form = forms.PeerForm()
-        if peer_form.validate_on_submit():
-            print(peer_form.add_submit)
-        return render_template('settings.html', title='Settings', peer=peer_form, peers=app.config[NEIGHBOURS])
-
-    # joins this peers dockers to a overlay swarm network
-    @app.route('/docker/network/join', methods=['GET', 'POST'])
-    def docker_network_join():
-        form = forms.OverlayJoinForm()
-        # if form.validate_on_submit():
-        #     network = form.name.data
-        #     if SINGLE_PEER.attached_network() != network:
-        #         del SINGLE_PEER
-
-        return render_template('overlay_network.html',
-                               title='Network Settings',
-                               networkForm=form,
-                               peer=app.get(PEER))
-
-    # creates an overlay network managed by this node (in swarm)
-    @app.route('/overlay/create')
-    def overlay_create():
-        pass
-
     # return info about the system flask is running on
-    @app.route('/info')
-    def info():
-        system_info = {'hostname': socket.gethostname(), 'ip_address': socket.gethostbyname(socket.gethostname())}
-        client = docker.from_env()
-        system_info.update(client.version())
+    @app.route('/')
+    @app.route('/info/')
+    @app.route('/info/<quorum_id>')
+    def info(quorum_id=None):
+        ip = socket.gethostbyname(socket.gethostname())
+        port = request.host.split(':')[1]
+        if app.config[PEER] is not None:
+            if app.config[PEER].in_committee(quorum_id):
+                system_info = {IP_ADDRESS: ip, PORT: port, QUORUM_ID: quorum_id}
+                return jsonify(system_info)
+
+        system_info = {IP_ADDRESS: ip, PORT: port, QUORUM_ID: None}
         return jsonify(system_info)
 
-    # stat sawtooth for qurorum id
+    # stat sawtooth for quorum id
     @app.route('/start/<quorum_id_a>/<quorum_id_b>')
     def start(quorum_id_a=None, quorum_id_b=None):
         if app.config[PEER] is not None:
@@ -102,4 +82,35 @@ def add_routes(app):
             app.config[PEER].make_genesis(quorum_id, val_keys, usr_keys)
         else:
             forward(app, "/make+genesis/{id}".format(id=quorum_id), quorum_id, req)
+        return ROUTE_EXECUTED_CORRECTLY
+
+    @app.route('/submit/', methods=['POST'])
+    def submit():
+        try:
+            req = request.get_json(force=True)
+        except KeyError as e:
+            return ROUTE_EXECUTION_FAILED.format(msg=e)
+        if app.config[PEER].in_committee(req[QUORUM_ID]):
+            tx = Transaction()
+            tx.load_from_json(req)
+            app.config[PEER].submit(tx)
+        else:
+            forward(app, "/submit/", req[QUORUM_ID], req)
+
+        return ROUTE_EXECUTED_CORRECTLY
+
+    @app.route('/get/', methods=['POST'])
+    def get():
+        try:
+            req = request.get_json(force=True)
+        except KeyError as e:
+            return ROUTE_EXECUTION_FAILED.format(msg=e)
+
+        if app.config[PEER].in_committee(req[QUORUM_ID]):
+            tx = Transaction()
+            tx.load_from_json(req)
+            return app.config[PEER].get_tx(tx)
+        else:
+            forward(app, "/get/", req[QUORUM_ID], req)
+
         return ROUTE_EXECUTED_CORRECTLY
