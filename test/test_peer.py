@@ -44,6 +44,10 @@ class TestPeerMethods(unittest.TestCase):
         self.assertEqual(p.ip(id_a), a.ip())
         self.assertEqual(p.ip(id_b), b.ip())
         self.assertEqual(p.attached_network(), DEFAULT_DOCKER_NETWORK)
+        self.assertTrue(p.in_committee(id_a))
+        self.assertTrue(p.in_committee(id_b))
+        self.assertFalse(p.in_committee('c'))
+        self.assertFalse(p.in_committee(0))
 
         del a, b, p
         a = SawtoothContainer('host')

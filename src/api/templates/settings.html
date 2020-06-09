@@ -2,49 +2,28 @@
 
 {% block content %}
     <div id="setting_forms" style="height:50%; width:100%">
-        <div id="add_peer_form" style="height:100%; width:50%; float:left;">
+        <div id="peer_form" style="height:100%; width:50%; float:left;">
             <h1>Add Peer</h1>
             <form action="" method="post" novalidate>
-                {{ add.hidden_tag() }}
+                {{ peer.hidden_tag() }}
                 <p>
-                    {{ add.new_ip.label }}<br>
-                    {{ add.new_ip(size=12) }}<br>
-                    {% for error in add.new_ip.errors %}
+                    {{ peer.ip.label }}<br>
+                    {{ peer.ip(size=12) }}<br>
+                    {% for error in peer.ip.errors %}
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
                 </p>
                 <p>
-                    {{ add.new_port.label }}<br>
-                    {{ add.new_port(size=12) }}<br>
-                    {% for error in add.new_port.errors %}
+                    {{ peer.port.label }}<br>
+                    {{ peer.port(size=12) }}<br>
+                    {% for error in peer.port.errors %}
                         <span style="color: red;">[{{ error }}]</span>
                     {% endfor %}
                 </p>
-                <p>{{ add.new_submit() }}</p>
+                <p>{{ peer.add_submit() }}</p>
+                <p>{{ peer.rm_submit() }}</p>
             </form>
         </div>
-        <div id="rm_peer_form" style="height:100%; width:50%; float:right;">
-            <h1>Remove Peer</h1>
-            <form action="" method="post" novalidate>
-                {{ rm.hidden_tag() }}
-                <p>
-                    {{ rm.old_ip.label }}<br>
-                    {{ rm.old_ip(size=12) }}<br>
-                    {% for error in rm.old_ip.errors %}
-                        <span style="color: red;">[{{ error }}]</span>
-                    {% endfor %}
-                </p>
-                <p>
-                    {{ rm.old_port.label }}<br>
-                    {{ rm.old_port(size=12) }}
-                    {% for error in rm.old_port.errors %}
-                        <span style="color: red;">[{{ error }}]</span>
-                    {% endfor %}
-                </p>
-                <p>{{ rm.old_submit() }}</p>
-            </form>
-        </div>
-    </div>
     <hr>
     <table>
         <tr> <th>IP Address</th> <th>Port</th> </tr>

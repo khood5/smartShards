@@ -33,19 +33,20 @@ class Peer:
         del self.__instance_a
         del self.__instance_b
 
-    def add_neighbor(self, neighbor_ip):
-        if neighbor_ip not in self.neighbors:
-            self.neighbors.append(neighbor_ip)
-
     def make_genesis(self, committee_id, val_keys, user_keys):
         if committee_id == self.committee_id_a:
             self.__instance_a.make_genesis(val_keys, user_keys)
-        else:
+        elif committee_id == self.committee_id_b:
             self.__instance_b.make_genesis(val_keys, user_keys)
+        else:
+            peer_logger.error('PEER: make_genesis for unknown quorum, '
+                              'known quorums:{known} requested quorum:{unknown}'.format(known=[self.committee_id_a,
+                                                                                               self.committee_id_b],
+                                                                                        unknown=committee_id))
 
-    def start_sawtooth(self, committee_A_ips, committee_B_ips):
-        self.__instance_a.join_sawtooth(committee_A_ips)
-        self.__instance_b.join_sawtooth(committee_B_ips)
+    def start_sawtooth(self, committee_a_ips, committee_b_ips):
+        self.__instance_a.join_sawtooth(committee_a_ips)
+        self.__instance_b.join_sawtooth(committee_b_ips)
 
     def submit(self, tx):
         if tx.quorum_id == self.committee_id_a:
@@ -134,8 +135,11 @@ class Peer:
     def peer_join(self, committee_id, committee_ips):
         if committee_id == self.committee_id_a:
             self.__instance_a.join_sawtooth(committee_ips)
-        else:
+        elif committee_id == self.committee_id_b:
             self.__instance_b.join_sawtooth(committee_ips)
+        else:
+            peer_logger.error('PEER: peer tried to start in {q}, but peer is not in {q}. Peer in {a}, {b}'
+                              .format(q=committee_id, a=self.committee_id_a, b=self.committee_id_b))
 
     def update_committee(self, committee_id, val_keys, user_keys):
         # Needed after a peer is deleted and when a peer joins
@@ -143,6 +147,11 @@ class Peer:
             self.__instance_a.update_committee(val_keys, user_keys)
         else:
             self.__instance_b.update_committee(val_keys, user_keys)
+
+    def in_committee(self, committee_id):
+        if committee_id == self.committee_id_a or committee_id == self.committee_id_b:
+            return True
+        return False
 
     def attached_network(self):
         if self.__instance_a.attached_network() != self.__instance_b.attached_network():
