@@ -3,7 +3,7 @@ import json
 from src.structures import Transaction
 
 
-class TestPeerMethods(unittest.TestCase):
+class TestTransactionMethods(unittest.TestCase):
 
     def test_transaction_to_json(self):
         tx = Transaction("a")

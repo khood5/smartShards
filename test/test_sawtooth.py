@@ -5,6 +5,7 @@ import docker as docker_api
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY
 from src.SawtoothPBFT import USER_KEY
+from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.util import stop_all_containers
 from src.util import get_container_ids
 from src.util import make_sawtooth_committee
@@ -38,7 +39,7 @@ class TestSawtoothMethods(unittest.TestCase):
             .output.decode('utf-8').strip()
         container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=USER_KEY["pub"])) \
             .output.decode('utf-8').strip()
-        container_network = 'bridge'
+        container_network = DEFAULT_DOCKER_NETWORK
 
         self.assertEqual(sawtooth_instance.id(), docker.containers.list()[0].id)
         self.assertEqual(sawtooth_instance.ip(), container_ip)

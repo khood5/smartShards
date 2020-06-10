@@ -114,3 +114,24 @@ def add_routes(app):
             forward(app, "/get/", req[QUORUM_ID], req)
 
         return ROUTE_EXECUTED_CORRECTLY
+
+    @app.route('/user+key/<quorum_id>')
+    def usr_key(quorum_id):
+        if app.config[PEER].in_committee(quorum_id):
+            return app.config[PEER].user_key(quorum_id)
+        else:
+            return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
+
+    @app.route('/val+key/<quorum_id>')
+    def val_key(quorum_id):
+        if app.config[PEER].in_committee(quorum_id):
+            return app.config[PEER].val_key(quorum_id)
+        else:
+            return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
+
+    @app.route('/ip/<quorum_id>')
+    def ip(quorum_id):
+        if app.config[PEER].in_committee(quorum_id):
+            return app.config[PEER].ip(quorum_id)
+        else:
+            return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
