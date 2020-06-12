@@ -6,12 +6,18 @@ from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
 import docker as docker_api
 import unittest
+from mock import patch
 import json
 import warnings
+import threading
 
-TRANSACTION_JSON = json.loads(json.dumps({QUORUM_ID: "a",
-                                          TRANSACTION_KEY: "test",
-                                          TRANSACTION_VALUE: "999"}))
+TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
+                                            TRANSACTION_KEY: "test",
+                                            TRANSACTION_VALUE: "999"}))
+
+TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
+                                            TRANSACTION_KEY: "test",
+                                            TRANSACTION_VALUE: "999"}))
 
 JOIN_A_JSON = json.loads(json.dumps({
     NEIGHBOURS: [
@@ -41,6 +47,13 @@ MAKE_GENESIS_JSON = json.loads(json.dumps({
 
 def get_plain_test(response):
     return response.data.decode("utf-8")
+
+
+def start_test_peer(port=5000):
+    app = api.create_app()
+    app_thread = threading.Thread(target=app.run, kwargs={'port': port})
+    app_thread.start()
+    return app_thread
 
 
 class TestAPI(unittest.TestCase):

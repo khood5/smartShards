@@ -81,7 +81,7 @@ def add_routes(app):
         elif quorum_id == app.config[PEER].committee_id_b:
             app.config[PEER].make_genesis(quorum_id, val_keys, usr_keys)
         else:
-            forward(app, "/make+genesis/{id}".format(id=quorum_id), quorum_id, req)
+            forward(app, "make+genesis/{id}".format(id=quorum_id), quorum_id, req)
         return ROUTE_EXECUTED_CORRECTLY
 
     @app.route('/submit/', methods=['POST'])
@@ -95,7 +95,7 @@ def add_routes(app):
             tx.load_from_json(req)
             app.config[PEER].submit(tx)
         else:
-            forward(app, "/submit/", req[QUORUM_ID], req)
+            forward(app, "submit/", req[QUORUM_ID], req)
 
         return ROUTE_EXECUTED_CORRECTLY
 
@@ -111,7 +111,7 @@ def add_routes(app):
             tx.load_from_json(req)
             return app.config[PEER].get_tx(tx)
         else:
-            forward(app, "/get/", req[QUORUM_ID], req)
+            forward(app, "get/", req[QUORUM_ID], req)
 
         return ROUTE_EXECUTED_CORRECTLY
 

@@ -107,10 +107,9 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                 forwarding_request = None
                 try:
                     forwarding_request = requests.post(url, json=json_data)
+                    app.logger.info("response form forward is {}".format(forwarding_request))
                 except ConnectionError as e:
                     app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[IP_ADDRESS],
                                                                         port=intersecting_quorum[PORT]))
                     app.logger.error(e)
-                finally:
-                    pass
-                app.logger.info("response form forward is {}".format(forwarding_request))
+                return

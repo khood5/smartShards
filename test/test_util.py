@@ -1,10 +1,19 @@
+from src.util import stop_all_containers
+from src.util import make_intersecting_committees
+from src.util import forward
+from src.api import create_app
+from src.api.constants import QUORUMS, IP_ADDRESS, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY
+from src.structures import Transaction
 import unittest
+from mock import patch
 import warnings
 import time
 import docker as docker_api
-from src.util import stop_all_containers
-from src.util import make_intersecting_committees
-from src.structures import Transaction
+import json
+
+TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
+                                            TRANSACTION_KEY: "test",
+                                            TRANSACTION_VALUE: "999"}))
 
 
 class TestUtilMethods(unittest.TestCase):
@@ -121,6 +130,20 @@ class TestUtilMethods(unittest.TestCase):
 
         for p in peers:
             del p
+
+    @patch('requests.post')
+    def test_forwarding(self, mock_post):
+        app = create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        app.config[QUORUMS]["a"] = [{IP_ADDRESS: "192.168.1.200", PORT: "5000", QUORUM_ID: "c"},
+                                    {IP_ADDRESS: "192.168.1.300", PORT: "5000", QUORUM_ID: "d"},
+                                    {IP_ADDRESS: "192.168.1.400", PORT: "5000", QUORUM_ID: "e"}]
+        mock_post.return_value = '<Response [200]>'
+        forward(app, 'submit/', 'c', TRANSACTION_C_JSON)
+        self.assertEqual(2, len(mock_post.call_args))
+        self.assertEqual('http://192.168.1.200:5000/submit/', mock_post.call_args[0][0])
+        self.assertEqual(TRANSACTION_C_JSON, mock_post.call_args[1]['json'])
 
 
 if __name__ == '__main__':
