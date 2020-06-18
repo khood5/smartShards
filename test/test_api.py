@@ -247,7 +247,6 @@ class TestAPI(unittest.TestCase):
         time.sleep(3)
 
         for p in peers:
-            a = get_plain_test(p.post('/get/', json=TRANSACTION_A_JSON))
             self.assertEqual('999', get_plain_test(p.post('/get/', json=TRANSACTION_A_JSON)))
 
 
