@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import IP_ADDRESS, QUORUMS, QUORUM_ID, PORT
+from src.api.constants import API_IP, QUORUMS, QUORUM_ID, PORT
 from src.SawtoothPBFT import SawtoothContainer
 from src.Peer import Peer
 import os
@@ -99,7 +99,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
     for this_quorum in app.config[QUORUMS]:
         for intersecting_quorum in app.config[QUORUMS][this_quorum]:
             if intersecting_quorum[QUORUM_ID] == quorum_id:
-                url = URL_REQUEST.format(hostname=intersecting_quorum[IP_ADDRESS],
+                url = URL_REQUEST.format(hostname=intersecting_quorum[API_IP],
                                          port=intersecting_quorum[PORT])
                 url += url_subdirectory
                 app.logger.info("request in quorum this peer is not a member of forwarding to "
@@ -109,7 +109,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                     forwarding_request = requests.post(url, json=json_data)
                     app.logger.info("response form forward is {}".format(forwarding_request))
                 except ConnectionError as e:
-                    app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[IP_ADDRESS],
+                    app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[API_IP],
                                                                         port=intersecting_quorum[PORT]))
                     app.logger.error(e)
                 return

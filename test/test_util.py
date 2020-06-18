@@ -2,7 +2,7 @@ from src.util import stop_all_containers
 from src.util import make_intersecting_committees
 from src.util import forward
 from src.api import create_app
-from src.api.constants import QUORUMS, IP_ADDRESS, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY
+from src.api.constants import QUORUMS, API_IP, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY
 from src.structures import Transaction
 import unittest
 from mock import patch
@@ -133,12 +133,13 @@ class TestUtilMethods(unittest.TestCase):
 
     @patch('requests.post')
     def test_forwarding(self, mock_post):
+        # making test app and setting up test envi
         app = create_app()
         app.config['TESTING'] = True
         app.config['DEBUG'] = False
-        app.config[QUORUMS]["a"] = [{IP_ADDRESS: "192.168.1.200", PORT: "5000", QUORUM_ID: "c"},
-                                    {IP_ADDRESS: "192.168.1.300", PORT: "5000", QUORUM_ID: "d"},
-                                    {IP_ADDRESS: "192.168.1.400", PORT: "5000", QUORUM_ID: "e"}]
+        app.config[QUORUMS]["a"] = [{API_IP: "192.168.1.200", PORT: "5000", QUORUM_ID: "c"},
+                                    {API_IP: "192.168.1.300", PORT: "5000", QUORUM_ID: "d"},
+                                    {API_IP: "192.168.1.400", PORT: "5000", QUORUM_ID: "e"}]
         mock_post.return_value = '<Response [200]>'
         forward(app, 'submit/', 'c', TRANSACTION_C_JSON)
         self.assertEqual(2, len(mock_post.call_args))

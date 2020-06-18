@@ -1,7 +1,8 @@
 # keys for json values on various requests
 USER_KEY = 'user_key'
 VALIDATOR_KEY = 'validator_key'
-IP_ADDRESS = 'ip_address'
+API_IP = 'ip_address'
+DOCKER_IP = 'docker_ip_address'
 PORT = 'port'
 NEIGHBOURS = 'neighbours'
 SECRET = 'SECRET_KEY'

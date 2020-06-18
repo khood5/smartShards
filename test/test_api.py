@@ -1,15 +1,15 @@
 import src.api as api
-from src.api.constants import PEER, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, IP_ADDRESS
-from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY
+from src.api.constants import PEER, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
+from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
 import docker as docker_api
 import unittest
-from mock import patch
 import json
 import warnings
 import threading
+import time
 
 TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
                                             TRANSACTION_KEY: "test",
@@ -22,17 +22,20 @@ TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
 JOIN_A_JSON = json.loads(json.dumps({
     NEIGHBOURS: [
         {
-            IP_ADDRESS: "192.168.1.200",
+            API_IP: "192.168.1.200",
+            DOCKER_IP: "10.10.10.1",
             PORT: "5000",
             QUORUM_ID: "c"
         },
         {
-            IP_ADDRESS: "192.168.1.300",
+            API_IP: "192.168.1.300",
+            DOCKER_IP: "10.10.10.2",
             PORT: "5000",
             QUORUM_ID: "d"
         },
         {
-            IP_ADDRESS: "192.168.1.400",
+            API_IP: "192.168.1.400",
+            DOCKER_IP: "10.10.10.3",
             PORT: "5000",
             QUORUM_ID: "e"
         }
@@ -127,23 +130,125 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual([
             {
-                IP_ADDRESS: "192.168.1.200",
+                API_IP: "192.168.1.200",
+                DOCKER_IP: "10.10.10.1",
                 PORT: "5000",
                 QUORUM_ID: "c"
             },
             {
-                IP_ADDRESS: "192.168.1.300",
+                API_IP: "192.168.1.300",
+                DOCKER_IP: "10.10.10.2",
                 PORT: "5000",
                 QUORUM_ID: "d"
             },
             {
-                IP_ADDRESS: "192.168.1.400",
+                API_IP: "192.168.1.400",
+                DOCKER_IP: "10.10.10.3",
                 PORT: "5000",
                 QUORUM_ID: "e"
             }
         ], app.config[QUORUMS]["a"])
 
         self.assertEqual(app.config[QUORUMS]["b"], [])
+
+    def test_make_genesis(self):
+        peer_api_one = api.create_app()
+        peer_api_one.config['TESTING'] = True
+        peer_api_one.config['DEBUG'] = False
+        peer_api_two = api.create_app()
+        peer_api_two.config['TESTING'] = True
+        peer_api_two.config['DEBUG'] = False
+        peer_api_three = api.create_app()
+        peer_api_three.config['TESTING'] = True
+        peer_api_three.config['DEBUG'] = False
+        peer_api_four = api.create_app()
+        peer_api_four.config['TESTING'] = True
+        peer_api_four.config['DEBUG'] = False
+
+        peers = [peer_api_one.test_client(), peer_api_two.test_client(),
+                 peer_api_three.test_client(), peer_api_four.test_client()]
+
+        peers[0].get('/start/a/b')
+        peers[1].get('/start/a/c')
+        peers[2].get('/start/a/d')
+        peers[3].get('/start/a/e')
+        docker = docker_api.from_env()
+        self.assertEqual(8, len(docker.containers.list()))
+
+        val_keys = [get_plain_test(p.get('/val+key/a')) for p in peers]
+        usr_keys = [get_plain_test(p.get('/user+key/a')) for p in peers]
+
+        genesis_json = json.loads(json.dumps({
+            USER_KEY: usr_keys,
+            VALIDATOR_KEY: val_keys
+        }))
+
+        peers[0].post('/make+genesis/a', json=genesis_json)
+
+        pbft_settings = docker.containers.list()[-1].exec_run("ls pbft-settings.batch").output.decode('utf-8').strip()
+        config_consensus = docker.containers.list()[-1].exec_run("ls config-consensus.batch").output.decode(
+            'utf-8').strip()
+        config_genesis = docker.containers.list()[-1].exec_run("ls config-genesis.batch").output.decode('utf-8').strip()
+
+        self.assertEqual('pbft-settings.batch', pbft_settings)
+        self.assertEqual('config-consensus.batch', config_consensus)
+        self.assertEqual('config-genesis.batch', config_genesis)
+
+    def test_start_committee(self):
+        peer_api_one = api.create_app()
+        peer_api_one.config['TESTING'] = True
+        peer_api_one.config['DEBUG'] = False
+        peer_api_two = api.create_app()
+        peer_api_two.config['TESTING'] = True
+        peer_api_two.config['DEBUG'] = False
+        peer_api_three = api.create_app()
+        peer_api_three.config['TESTING'] = True
+        peer_api_three.config['DEBUG'] = False
+        peer_api_four = api.create_app()
+        peer_api_four.config['TESTING'] = True
+        peer_api_four.config['DEBUG'] = False
+
+        peers = [peer_api_one.test_client(), peer_api_two.test_client(),
+                 peer_api_three.test_client(), peer_api_four.test_client()]
+
+        peers[0].get('/start/a/b')
+        peers[1].get('/start/a/c')
+        peers[2].get('/start/a/d')
+        peers[3].get('/start/a/e')
+        docker = docker_api.from_env()
+        self.assertEqual(8, len(docker.containers.list()))
+
+        val_keys = [get_plain_test(p.get('/val+key/a')) for p in peers]
+        usr_keys = [get_plain_test(p.get('/user+key/a')) for p in peers]
+
+        genesis_json = json.loads(json.dumps({
+            USER_KEY: usr_keys,
+            VALIDATOR_KEY: val_keys
+        }))
+
+        peers[0].post('/make+genesis/a', json=genesis_json)
+
+        join_request_data = {NEIGHBOURS: []}
+        ip = 1
+        quorum = 'b'
+        for p in peers:
+            # use pretend API address and ports because app is not actually running
+            join_request_data[NEIGHBOURS].append(
+                {API_IP: "192.168.1.{}".format(ip), DOCKER_IP: get_plain_test(p.get('/ip/a')),
+                 PORT: "5000", QUORUM_ID: quorum})
+            ip += 1
+            quorum = chr(ord(quorum) + 1)
+
+        data = json.loads(json.dumps(join_request_data))
+        for p in peers:
+            p.post('/join/a', json=data)
+
+        peers[0].post('/submit/', json=TRANSACTION_A_JSON)
+        time.sleep(3)
+
+        for p in peers:
+            a = get_plain_test(p.post('/get/', json=TRANSACTION_A_JSON))
+            self.assertEqual('999', get_plain_test(p.post('/get/', json=TRANSACTION_A_JSON)))
 
 
 if __name__ == "__main__":
