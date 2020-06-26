@@ -38,7 +38,6 @@ class TestPeerMethods(unittest.TestCase):
         id_b = 2
         p = Peer(a, b, id_a, id_b)
 
-        self.assertEqual(p.neighbors, [])
         self.assertEqual(p.committee_id_a, id_a)
         self.assertEqual(p.committee_id_b, id_b)
         self.assertEqual(p.ip(id_a), a.ip())
