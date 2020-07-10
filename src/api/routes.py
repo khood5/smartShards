@@ -47,7 +47,7 @@ def add_routes(app):
         app.config[QUORUMS][quorum_id_b] = []
         return ROUTE_EXECUTED_CORRECTLY
 
-    # joins peers first instance (a) to a committee
+    # joins pbft instance to a committee
     @app.route('/join/<quorum_id>', methods=['POST'])
     def join(quorum_id=None):
         req = get_json(request, app)
@@ -72,6 +72,30 @@ def add_routes(app):
         ips = [n[DOCKER_IP] for n in app.config[QUORUMS][quorum_id]]
         ips.append(app.config[PEER].ip(quorum_id))
         app.config[PEER].peer_join(quorum_id, ips)  # use sawtooth container ip to start sawtooth
+        return ROUTE_EXECUTED_CORRECTLY
+
+    # adds neighbour info to API (does not add to sawtooth use join to join a peer to a network)
+    @app.route('/add/<quorum_id>', methods=['POST'])
+    def add(quorum_id=None):
+        req = get_json(request, app)
+        neighbours = req[NEIGHBOURS]
+        # try to access peer object (if peer is inaccessible then peer has not started)
+        try:
+            # check and make sure peer is in quorum
+            if not app.config[PEER].in_committee(quorum_id):
+                app.logger.error("Peer not in committee {} can not join PBFT".format(quorum_id))
+                return ROUTE_EXECUTION_FAILED.format(msg="Peer not in committee {} can not join PBFT"
+                                                     .format('quorum_id'))
+        except AttributeError as e:
+            app.logger.error("Peer not started request /start/<quorum_id_a>/<quorum_id_b> first")
+            app.logger.error(e)
+            return ROUTE_EXECUTION_FAILED.format(msg="") + "Peer not started request " \
+                                                           "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
+                e)
+
+        app.logger.info("Joining {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
+        # store neighbour info in app
+        app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
 
     # request that genesis be made

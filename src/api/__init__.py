@@ -4,9 +4,9 @@ from src.api.constants import SECRET, PEER, DOCKER_NETWORK, QUORUMS
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 
 
-def create_app():
+def create_app(peer=None):
     new_app = Flask(__name__)
-    new_app.config[PEER] = None  # holds the instances
+    new_app.config[PEER] = peer  # holds the instances
     new_app.config[DOCKER_NETWORK] = DEFAULT_DOCKER_NETWORK  # stores the network instances are working on
 
     # stores the list of neighbours and the quorums they are intersecting

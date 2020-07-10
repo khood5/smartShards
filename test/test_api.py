@@ -1,4 +1,6 @@
 import src.api as api
+from src.SawtoothPBFT import SawtoothContainer
+from src.Peer import Peer
 from src.api.constants import PEER, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
 from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
@@ -22,8 +24,8 @@ TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
 JOIN_A_JSON = json.loads(json.dumps({
     NEIGHBOURS: [
         {
-            API_IP: "192.168.1.200",
-            DOCKER_IP: "10.10.10.1",
+            API_IP: "192.168.1.200",  # ip for the API
+            DOCKER_IP: "10.10.10.1",  # ip of the container in quorum 'a'
             PORT: "5000",
             QUORUM_ID: "c"
         },
@@ -36,6 +38,26 @@ JOIN_A_JSON = json.loads(json.dumps({
         {
             API_IP: "192.168.1.400",
             DOCKER_IP: "10.10.10.3",
+            PORT: "5000",
+            QUORUM_ID: "e"
+        }
+    ]
+}))
+
+ADD_A_JSON = json.loads(json.dumps({
+    NEIGHBOURS: [
+        {
+            API_IP: "192.168.1.200",  # ip for the API
+            PORT: "5000",
+            QUORUM_ID: "c"
+        },
+        {
+            API_IP: "192.168.1.300",
+            PORT: "5000",
+            QUORUM_ID: "d"
+        },
+        {
+            API_IP: "192.168.1.400",
             PORT: "5000",
             QUORUM_ID: "e"
         }
@@ -120,6 +142,43 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(get_plain_test(client.get('/user+key/b')), container_user_key)
         self.assertNotEqual(get_plain_test(client.get('/val+key/b')), get_plain_test(client.get('/user+key/b')))
 
+    def test_start_with_peer(self):
+        a = SawtoothContainer()
+        b = SawtoothContainer()
+        id_a = 'a'
+        id_b = 'b'
+        p = Peer(a, b, id_a, id_b)
+
+        app = api.create_app(p)
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+
+        docker = docker_api.from_env()
+        # get info on container a
+        container_ip = docker.containers.list()[1].exec_run("hostname -i").output.decode('utf-8').strip()
+        container_val_key = docker.containers.list()[1].exec_run("cat {val_pub}".format(val_pub=VKEY["pub"])) \
+            .output.decode('utf-8').strip()
+        container_user_key = docker.containers.list()[1].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
+            .output.decode('utf-8').strip()
+
+        self.assertEqual(get_plain_test(client.get('/ip/a')), container_ip)
+        self.assertEqual(get_plain_test(client.get('/val+key/a')), container_val_key)
+        self.assertEqual(get_plain_test(client.get('/user+key/a')), container_user_key)
+        self.assertNotEqual(get_plain_test(client.get('/val+key/a')), get_plain_test(client.get('/user+key/a')))
+
+        # get info on container b
+        container_ip = docker.containers.list()[0].exec_run("hostname -i").output.decode('utf-8').strip()
+        container_val_key = docker.containers.list()[0].exec_run("cat {val_pub}".format(val_pub=VKEY["pub"])) \
+            .output.decode('utf-8').strip()
+        container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
+            .output.decode('utf-8').strip()
+
+        self.assertEqual(get_plain_test(client.get('/ip/b')), container_ip)
+        self.assertEqual(get_plain_test(client.get('/val+key/b')), container_val_key)
+        self.assertEqual(get_plain_test(client.get('/user+key/b')), container_user_key)
+        self.assertNotEqual(get_plain_test(client.get('/val+key/b')), get_plain_test(client.get('/user+key/b')))
+
     def test_api_join(self):
         app = api.create_app()
         app.config['TESTING'] = True
@@ -144,6 +203,34 @@ class TestAPI(unittest.TestCase):
             {
                 API_IP: "192.168.1.400",
                 DOCKER_IP: "10.10.10.3",
+                PORT: "5000",
+                QUORUM_ID: "e"
+            }
+        ], app.config[QUORUMS]["a"])
+
+        self.assertEqual(app.config[QUORUMS]["b"], [])
+
+    def test_add(self):
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+        client.get('/start/a/b')
+        response = client.post('/add/a', json=ADD_A_JSON)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([
+            {
+                API_IP: "192.168.1.200",
+                PORT: "5000",
+                QUORUM_ID: "c"
+            },
+            {
+                API_IP: "192.168.1.300",
+                PORT: "5000",
+                QUORUM_ID: "d"
+            },
+            {
+                API_IP: "192.168.1.400",
                 PORT: "5000",
                 QUORUM_ID: "e"
             }

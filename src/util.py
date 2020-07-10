@@ -113,3 +113,14 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                                                                         port=intersecting_quorum[PORT]))
                     app.logger.error(e)
                 return
+
+
+def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
+    # * 2 because two instance per peer
+    pbft_instances = make_intersecting_committees(number_of_committees, intersections)
+
+
+    
+
+
+
