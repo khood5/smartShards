@@ -1,7 +1,7 @@
 import docker as docker_api
 from src.api.constants import API_IP, QUORUMS, QUORUM_ID, PORT
 from src.SawtoothPBFT import SawtoothContainer
-from src.Peer import Peer
+from src.Intersection import Intersection
 import os
 import logging
 import logging.handlers
@@ -24,6 +24,11 @@ def util_log_to(path, console_logging=False):
     util_logger.propagate = console_logging
     util_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     util_logger.addHandler(handler)
+
+
+# get plain text from HTTP GET response
+def get_plain_test(response):
+    return response.data.decode("utf-8")
 
 
 def stop_all_containers():
@@ -65,7 +70,7 @@ def make_single_intersection(instances: list, committee_size: int):
     peers = []
     for row in range(committee_size + 1):
         for column in range(row, committee_size):
-            peers.append(Peer(instances[row][column], instances[column + 1][row], row, column + 1), )
+            peers.append(Intersection(instances[row][column], instances[column + 1][row], row, column + 1), )
             util_logger.info("In committee {a} committee Member {a_ip} matches {b_ip} in committee {b}".format(
                 a=row,
                 a_ip=instances[row][column].ip(),
@@ -118,9 +123,3 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
 def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
     # * 2 because two instance per peer
     pbft_instances = make_intersecting_committees(number_of_committees, intersections)
-
-
-    
-
-
-

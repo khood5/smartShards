@@ -1,4 +1,4 @@
-from src.Peer import Peer
+from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer, DEFAULT_DOCKER_NETWORK
 from src.util import make_sawtooth_committee
 from src.util import stop_all_containers
@@ -13,7 +13,7 @@ import warnings
 def make_peer_committees(size: int, id_a=1, id_b=2):
     containers_a = make_sawtooth_committee(size)
     containers_b = make_sawtooth_committee(size)
-    peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
+    peers = [Intersection(containers_a[i], containers_b[i], id_a, id_b) for i in range(size)]
 
     return peers
 
@@ -36,7 +36,7 @@ class TestPeerMethods(unittest.TestCase):
         b = SawtoothContainer()
         id_a = 1
         id_b = 2
-        p = Peer(a, b, id_a, id_b)
+        p = Intersection(a, b, id_a, id_b)
 
         self.assertEqual(p.neighbors, [])
         self.assertEqual(p.committee_id_a, id_a)
@@ -54,7 +54,7 @@ class TestPeerMethods(unittest.TestCase):
         b = SawtoothContainer('host')
         id_a = 1
         id_b = 2
-        p = Peer(a, b, id_a, id_b)
+        p = Intersection(a, b, id_a, id_b)
         self.assertEqual(p.attached_network(), 'host')
 
     def test_committee_setup_single(self):
@@ -71,7 +71,7 @@ class TestPeerMethods(unittest.TestCase):
         val_keys_b = [i.val_key() for i in containers_b]
         committee_ips_b = [i.ip() for i in containers_b]
 
-        peers = [Peer(containers_a[i], containers_b[i], id_a, id_b) for i in range(4)]
+        peers = [Intersection(containers_a[i], containers_b[i], id_a, id_b) for i in range(4)]
 
         peers[0].make_genesis(id_a, val_keys_a, user_keys_a)
         peers[0].make_genesis(id_b, val_keys_b, user_keys_b)
@@ -143,7 +143,7 @@ class TestPeerMethods(unittest.TestCase):
         number_of_tx = 1
         id_a = peers[0].committee_id_a
         id_b = peers[0].committee_id_b
-        peers.append(Peer(SawtoothContainer(), SawtoothContainer(), id_a, id_b))
+        peers.append(Intersection(SawtoothContainer(), SawtoothContainer(), id_a, id_b))
         committee_ips_a = [p._Peer__instance_a.ip() for p in peers]
         committee_ips_b = [p._Peer__instance_b.ip() for p in peers]
 
@@ -242,7 +242,7 @@ class TestPeerMethods(unittest.TestCase):
         peers = make_peer_committees(4)
         id_a = peers[0].committee_id_a
 
-        new_peer = Peer(SawtoothContainer(), None, id_a, None)
+        new_peer = Intersection(SawtoothContainer(), None, id_a, None)
 
         committee_ips_a = [p.ip(id_a) for p in peers]
         committee_ips_a.append(new_peer.ip(id_a))

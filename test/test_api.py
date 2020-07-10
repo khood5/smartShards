@@ -1,16 +1,16 @@
 import src.api as api
 from src.SawtoothPBFT import SawtoothContainer
-from src.Peer import Peer
-from src.api.constants import PEER, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
+from src.Intersection import Intersection
+from src.api.constants import PBFT_INSTANCES, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
 from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
+from src.util import get_plain_test
 import docker as docker_api
 import unittest
 import json
 import warnings
-import threading
 import time
 
 TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
@@ -70,17 +70,6 @@ MAKE_GENESIS_JSON = json.loads(json.dumps({
 }))
 
 
-def get_plain_test(response):
-    return response.data.decode("utf-8")
-
-
-def start_test_peer(port=5000):
-    app = api.create_app()
-    app_thread = threading.Thread(target=app.run, kwargs={'port': port})
-    app_thread.start()
-    return app_thread
-
-
 class TestAPI(unittest.TestCase):
 
     def setUp(self):
@@ -103,17 +92,17 @@ class TestAPI(unittest.TestCase):
         # test that wrong url do nothing
         response = client.get('/start/')
         self.assertEqual(404, response.status_code)
-        self.assertIsNone(app.config[PEER])
+        self.assertIsNone(app.config[PBFT_INSTANCES])
         self.assertEqual({}, app.config[QUORUMS])
         response = client.get('/start/a/')
         self.assertEqual(404, response.status_code)
-        self.assertIsNone(app.config[PEER])
+        self.assertIsNone(app.config[PBFT_INSTANCES])
         self.assertEqual({}, app.config[QUORUMS])
 
         # test actual url works
         response = client.get('/start/a/b')
         self.assertEqual(200, response.status_code)
-        self.assertIsNotNone(app.config[PEER])
+        self.assertIsNotNone(app.config[PBFT_INSTANCES])
         self.assertEqual({'a': [], 'b': []}, app.config[QUORUMS])
         docker = docker_api.from_env()
         self.assertEqual(2, len(docker.containers.list()))
@@ -147,7 +136,7 @@ class TestAPI(unittest.TestCase):
         b = SawtoothContainer()
         id_a = 'a'
         id_b = 'b'
-        p = Peer(a, b, id_a, id_b)
+        p = Intersection(a, b, id_a, id_b)
 
         app = api.create_app(p)
         app.config['TESTING'] = True
