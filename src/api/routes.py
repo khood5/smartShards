@@ -109,7 +109,7 @@ def add_routes(app):
         elif quorum_id == app.config[PBFT_INSTANCES].committee_id_b:
             app.config[PBFT_INSTANCES].make_genesis(quorum_id, val_keys, usr_keys)
         else:
-            forward(app, "make+genesis/{id}".format(id=quorum_id), quorum_id, req)
+            return forward(app, "make+genesis/{id}".format(id=quorum_id), quorum_id, req)
         return ROUTE_EXECUTED_CORRECTLY
 
     @app.route('/submit/', methods=['POST'])
@@ -119,10 +119,9 @@ def add_routes(app):
             tx = Transaction()
             tx.load_from_json(req)
             app.config[PBFT_INSTANCES].submit(tx)
+            return ROUTE_EXECUTED_CORRECTLY
         else:
-            forward(app, "submit/", req[QUORUM_ID], req)
-
-        return ROUTE_EXECUTED_CORRECTLY
+            return forward(app, "submit/", req[QUORUM_ID], req)
 
     @app.route('/get/', methods=['POST'])
     def get():
@@ -133,9 +132,7 @@ def add_routes(app):
             tx.load_from_json(req)
             return app.config[PBFT_INSTANCES].get_tx(tx)
         else:
-            forward(app, "get/", req[QUORUM_ID], req)
-
-        return ROUTE_EXECUTED_CORRECTLY
+            return forward(app, "get/", req[QUORUM_ID], req)
 
     @app.route('/user+key/<quorum_id>')
     def usr_key(quorum_id):

@@ -117,7 +117,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                     app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[API_IP],
                                                                         port=intersecting_quorum[PORT]))
                     app.logger.error(e)
-                return
+                return forwarding_request
 
 
 def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
