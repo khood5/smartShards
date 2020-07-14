@@ -18,7 +18,7 @@ def make_peer_committees(size: int, id_a=1, id_b=2):
     return intersections
 
 
-class TestPeerMethods(unittest.TestCase):
+class TestIntersectionMethods(unittest.TestCase):
 
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
@@ -188,6 +188,7 @@ class TestPeerMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, a_blocks)
             self.assertEqual(number_of_tx, b_blocks)
 
+    # test that peer can leave a committee with cooperatively
     def test_peer_leave(self):
         intersections = make_peer_committees(5)
         number_of_tx = 1
@@ -239,6 +240,8 @@ class TestPeerMethods(unittest.TestCase):
             self.assertEqual(number_of_tx_a, a_blocks)
             self.assertEqual(number_of_tx_b, b_blocks)
 
+    # test that a peer can join one committee with out effecting the intersecting one (i.e. committees that intersect
+    # are not the same size)
     def test_committee_independent_join(self):
         intersections = make_peer_committees(4)
         id_a = intersections[0].committee_id_a
@@ -293,6 +296,8 @@ class TestPeerMethods(unittest.TestCase):
         for inter in committee_b:
             self.assertEqual(number_of_tx_b, len(inter.blocks(id_b)))
 
+    # test that a peer can leave one committee with out effecting the intersecting one (i.e. committees that intersect
+    # are not the same size)
     def test_committee_independent_leave(self):
         self.skipTest("This test is skipped independent leave is not support yet")
         intersections = make_peer_committees(5)
