@@ -9,7 +9,8 @@ import unittest
 import warnings
 
 
-# makes 2 quorums each with size number of intersections (with whole committee intersection i.e. each peer is in both quorums)
+# makes 2 quorums each with size number of intersections (with whole committee intersection i.e. each peer is in both
+# quorums)
 def make_peer_committees(size: int, id_a=1, id_b=2):
     containers_a = make_sawtooth_committee(size)
     containers_b = make_sawtooth_committee(size)
