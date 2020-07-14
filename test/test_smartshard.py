@@ -17,7 +17,12 @@ class TestSmartShard(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
         docker = docker_api.from_env()
-        if len(docker.containers.list()) is not 0:
+        print("printing containers debug")
+        print(len(docker.containers.list()))
+        time.sleep(5)
+        #if len(docker.containers.list()) is not 0:
+        if len(docker.containers.list()) != 0:
+            print('time case didnt match')
             self.skipTest("There should be no docker containers currently running, there was {} found.\n"
                           "Run \"docker ps\" to see all running containers".format(len(docker.containers.list())))
         docker.close()
@@ -80,9 +85,20 @@ class TestSmartShard(unittest.TestCase):
         a = SawtoothContainer()
         b = SawtoothContainer()
         inter = Intersection(a, b, 'a', 'b')
+
         peer = SmartShardPeer(inter)
         peer.start()
+
+        #peer.app.config['TESTING'] = True
+        #peer.app.config['DEBUG'] = False
+
+        print("testing setting instances")
+        print(dir(peer.app))
+        #peer.app.
+        #ime.sleep(5)
+        print(peer.queue.get())
         client = peer.app.test_client()
+
 
         docker = docker_api.from_env()
         # get info on container a

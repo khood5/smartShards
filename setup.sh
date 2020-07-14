@@ -33,6 +33,10 @@ newgrp docker
 # install docker API
 pip3 install docker
 
+pip3 install psutil
+
+pip3 install mock
+
 # make firewall exceptions for swarm (overlay network for docker)
 ufw allow 2376/tcp && sudo ufw allow 7946/udp &&
 ufw allow 7946/tcp && sudo ufw allow 80/tcp &&
