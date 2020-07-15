@@ -3,7 +3,7 @@ from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USE
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
 from src.structures import Transaction
-from src.util import forward
+from src.api.api_util import forward
 from flask import jsonify, request
 import socket
 from os import system
@@ -75,7 +75,7 @@ def add_routes(app):
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         # get sawtooth container ip address
-        ips = [n[DOCKER_IP] for n in app.config[QUORUMS][quorum_id]]
+        ips = [n.pop(DOCKER_IP) for n in app.config[QUORUMS][quorum_id]]
         ips.append(app.config[PBFT_INSTANCES].ip(quorum_id))
         app.config[PBFT_INSTANCES].peer_join(quorum_id, ips)  # use sawtooth container ip to start sawtooth
         return ROUTE_EXECUTED_CORRECTLY

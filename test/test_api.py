@@ -6,7 +6,7 @@ from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
-from src.util import get_plain_test
+from src.api.api_util import get_plain_test
 import docker as docker_api
 import unittest
 import json
@@ -179,19 +179,16 @@ class TestAPI(unittest.TestCase):
         self.assertEqual([
             {
                 API_IP: "192.168.1.200",
-                DOCKER_IP: "10.10.10.1",
                 PORT: "5000",
                 QUORUM_ID: "c"
             },
             {
                 API_IP: "192.168.1.300",
-                DOCKER_IP: "10.10.10.2",
                 PORT: "5000",
                 QUORUM_ID: "d"
             },
             {
                 API_IP: "192.168.1.400",
-                DOCKER_IP: "10.10.10.3",
                 PORT: "5000",
                 QUORUM_ID: "e"
             }
