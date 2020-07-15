@@ -4,7 +4,7 @@ from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
-from src.util import get_plain_test
+from src.api.api_util import get_plain_test
 import docker as docker_api
 import warnings
 import psutil
