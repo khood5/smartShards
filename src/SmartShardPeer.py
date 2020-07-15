@@ -27,37 +27,33 @@ DEFAULT_PORT = 5000
 
 class SmartShardPeer:
 
-    def __init__(self, peer=None, port=DEFAULT_PORT):
-        print("initializing SSP")
+    def __init__(self, peer=None, port=DEFAULT_PORT, inter=None):
         self.port = port
         self.api = create_app(peer)
-        self.app = None
+        #self.app = None
         self.queue = mp.Queue()
+        self.inter = inter
 
     def __del__(self):
-        print("deleting SSP")
-        if self.app is not None:
-            self.app.terminate()
-            smart_shard_peer_log.info('terminating API on {}'.format(self.port))
+        print(True) # make actually work later
+        #if self.app is not None:
+            #self.app.terminate()
+            #smart_shard_peer_log.info('terminating API on {}'.format(self.port))
 
     def add_to_queue(self, **ob):
         self.queue.put(ob)
         self.api.run()
 
-
     def start(self):
-        print("starting SSP")
         if self.port is None:
             smart_shard_peer_log.error('start called with no PORT')
-        if self.app is not None:
-            smart_shard_peer_log.error('app on {} is already running'.format(self.port))
-        print('a')
-        #self.app = mp.Process(target=self.api.run, kwargs=({'port': self.port}))
-        self.app = mp.Process(target=self.add_to_queue, kwargs=({'port': self.port}))
-        self.app.daemon = True
-        self.app.start()
-        #print(q.get())
-        #p.join()
+        #if self.app is not None:
+            #smart_shard_peer_log.error('app on {} is already running'.format(self.port))
+
+        #self.app = mp.Process(target=self.add_to_queue, kwargs=({'port': self.port}))
+        #self.app.daemon = True
+        #self.app.start()
+        print(dir(self.api))
 
     def pid(self):
         return self.app.pid

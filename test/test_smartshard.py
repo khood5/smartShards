@@ -84,21 +84,15 @@ class TestSmartShard(unittest.TestCase):
     def test_setting_instances(self):
         a = SawtoothContainer()
         b = SawtoothContainer()
-        inter = Intersection(a, b, 'a', 'b')
+        intersection = Intersection(a, b, 'a', 'b')
 
-        peer = SmartShardPeer(inter)
+        peer = SmartShardPeer(inter=intersection)
         peer.start()
 
-        #peer.app.config['TESTING'] = True
-        #peer.app.config['DEBUG'] = False
+        peer.api.config['TESTING'] = True
+        peer.api.config['DEBUG'] = False
 
-        print("testing setting instances")
-        print(dir(peer.app))
-        #peer.app.
-        #ime.sleep(5)
-        print(peer.queue.get())
-        client = peer.app.test_client()
-
+        client = peer.api.test_client()
 
         docker = docker_api.from_env()
         # get info on container a
