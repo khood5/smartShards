@@ -1,9 +1,6 @@
 from src.api import create_app
 import logging
 import logging.handlers
-import os, signal
-from src.api.routes import shutdown
-from flask import request
 import multiprocessing as mp
 
 logging.basicConfig(
