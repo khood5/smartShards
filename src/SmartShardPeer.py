@@ -2,7 +2,10 @@ from src.api import create_app
 import logging
 import logging.handlers
 import os
-import multiprocessing as mp
+from src.api.routes import shutdown
+from flask import request
+
+#import multiprocessing as mp
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -24,36 +27,29 @@ def smart_shard_peer_log_to(path, console_logging=False):
 
 DEFAULT_PORT = 5000
 
-
 class SmartShardPeer:
 
-    def __init__(self, peer=None, port=DEFAULT_PORT, inter=None):
+    def __init__(self, peer=None, port=DEFAULT_PORT):
         self.port = port
         self.api = create_app(peer)
-        #self.app = None
-        self.queue = mp.Queue()
-        self.inter = inter
+        self.peer = peer
+        self.id = os.getpid()
 
     def __del__(self):
-        print(True) # make actually work later
+        shutdown(self.id) # this does not actually stop the flask server. Seems to be impossible to do so.
+        del self.id
+        del self.port
+        del self.api
+        del self.peer
         #if self.app is not None:
             #self.app.terminate()
             #smart_shard_peer_log.info('terminating API on {}'.format(self.port))
 
-    def add_to_queue(self, **ob):
-        self.queue.put(ob)
-        self.api.run()
-
     def start(self):
         if self.port is None:
             smart_shard_peer_log.error('start called with no PORT')
-        #if self.app is not None:
-            #smart_shard_peer_log.error('app on {} is already running'.format(self.port))
-
-        #self.app = mp.Process(target=self.add_to_queue, kwargs=({'port': self.port}))
-        #self.app.daemon = True
-        #self.app.start()
-        print(dir(self.api))
+        else:
+            smart_shard_peer_log.info('SmartShardPeer ' + str(self.id) + ' started successfully')
 
     def pid(self):
-        return self.app.pid
+        return self.id

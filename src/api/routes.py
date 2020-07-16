@@ -6,6 +6,7 @@ from src.structures import Transaction
 from src.util import forward
 from flask import jsonify, request
 import socket
+from os import system
 
 
 def get_json(request, app):
@@ -16,6 +17,11 @@ def get_json(request, app):
         app.logger.error(e)
         return ROUTE_EXECUTION_FAILED.format(msg=e)
     return req
+
+
+def shutdown(id):
+    #system("kill " + str(id))
+    print("received kill order")
 
 
 def add_routes(app):
