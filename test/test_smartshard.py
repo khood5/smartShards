@@ -10,6 +10,7 @@ import warnings
 import psutil
 import unittest
 import time
+import gc
 
 
 class TestSmartShard(unittest.TestCase):
@@ -28,6 +29,7 @@ class TestSmartShard(unittest.TestCase):
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_start(self):

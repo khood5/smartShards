@@ -10,6 +10,7 @@ import warnings
 import time
 import docker as docker_api
 import json
+import gc
 
 TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
                                             TRANSACTION_KEY: "test",
@@ -27,6 +28,7 @@ class TestUtilMethods(unittest.TestCase):
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_1_intersection(self):
