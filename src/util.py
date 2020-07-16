@@ -120,6 +120,8 @@ def get_neighbors(quorum, network: map):
     return neighbors
 
 
+# starts a set of peers on the same host (differentiated by port number)
+# returns a dict {portNumber : SmartShardPeer}
 def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
     port_number = 5000
     inter = make_intersecting_committees(number_of_committees, intersections)
@@ -145,3 +147,5 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         }))
         url = "http://{ip}:{port}/add/{quorum}".format(ip=peers_ip, port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
+
+    return peers

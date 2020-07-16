@@ -1,4 +1,5 @@
 from src.api import create_app
+from src.api.constants import PBFT_INSTANCES
 import logging
 import logging.handlers
 import os
@@ -61,3 +62,9 @@ class SmartShardPeer:
 
     def pid(self):
         return self.app.pid
+
+    def committee_id_a(self):
+        return self.api.config[PBFT_INSTANCES].Aid
+
+    def committee_id_b(self):
+        return self.api.config[PBFT_INSTANCES].Bid
