@@ -3,10 +3,10 @@ import json
 
 
 class Transaction:
-    def __init__(self, quorum="", k="", v=""):
+    def __init__(self, quorum="", key="", value=""):
         self.quorum_id = quorum
-        self.key = k
-        self.value = v
+        self.key = key
+        self.value = value
 
     def id(self):
         # this is the id of the destination quorum
