@@ -9,6 +9,7 @@ from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.util import stop_all_containers
 from src.util import get_container_ids
 from src.util import make_sawtooth_committee
+import gc
 
 
 class TestSawtoothMethods(unittest.TestCase):
@@ -22,6 +23,7 @@ class TestSawtoothMethods(unittest.TestCase):
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_start_container(self):

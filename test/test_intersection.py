@@ -7,6 +7,7 @@ import docker as docker_api
 import time
 import unittest
 import warnings
+import gc
 
 
 # makes 2 quorums each with size number of intersections (with whole committee intersection i.e. each peer is in both
@@ -30,6 +31,7 @@ class TestIntersectionMethods(unittest.TestCase):
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_peer_setup(self):

@@ -12,6 +12,7 @@ import unittest
 import json
 import warnings
 import time
+import gc
 
 TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
                                             TRANSACTION_KEY: "test",
@@ -81,6 +82,7 @@ class TestAPI(unittest.TestCase):
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_api_start(self):
