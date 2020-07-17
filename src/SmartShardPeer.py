@@ -3,6 +3,8 @@ from src.api.constants import PBFT_INSTANCES
 import logging
 import logging.handlers
 import multiprocessing as mp
+import os
+
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -24,6 +26,7 @@ def smart_shard_peer_log_to(path, console_logging=False):
 
 DEFAULT_PORT = 5000
 
+
 class SmartShardPeer:
 
     def __init__(self, peer=None, port=DEFAULT_PORT):
@@ -33,7 +36,7 @@ class SmartShardPeer:
 
     def __del__(self):
         del self.peer
-        self.app.kill()
+        self.app.terminate()
         self.app.join()  # wait for app kill to fully complete
         del self.app
         smart_shard_peer_log.info('terminating API on {}'.format(self.port))
@@ -58,7 +61,7 @@ class SmartShardPeer:
         return self.app.pid
 
     def committee_id_a(self):
-        return self.api.config[PBFT_INSTANCES].Aid
+        return self.app.api.config[PBFT_INSTANCES].Aid
 
     def committee_id_b(self):
-        return self.api.config[PBFT_INSTANCES].Bid
+        return self.app.api.config[PBFT_INSTANCES].Bid

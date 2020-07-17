@@ -6,7 +6,6 @@ from src.structures import Transaction
 from src.api.api_util import forward
 from flask import jsonify, request
 import socket
-from os import system
 
 
 def get_json(request, app):

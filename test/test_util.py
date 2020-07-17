@@ -1,5 +1,6 @@
 from src.util import stop_all_containers
 from src.util import make_intersecting_committees
+from src.util import make_intersecting_committees_on_host
 from src.api.api_util import forward
 from src.api import create_app
 from src.api.constants import QUORUMS, API_IP, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY
@@ -11,6 +12,9 @@ import time
 import docker as docker_api
 import json
 import gc
+import psutil
+import requests
+import socket
 
 TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
                                             TRANSACTION_KEY: "test",
@@ -148,10 +152,18 @@ class TestUtilMethods(unittest.TestCase):
         self.assertEqual('http://192.168.1.200:5000/submit/', mock_post.call_args[0][0])
         self.assertEqual(TRANSACTION_C_JSON, mock_post.call_args[1]['json'])
 
-    def test_intersecing_committees_on_host(self):
-        peers = make_intersecting_committees(5, 1)
+    def test_intersecting_committees_on_host(self):
+        peers = make_intersecting_committees_on_host(5, 1)
         for p in peers:
-            pass
+            pid = p.pid()
+            pros = []
+            for p in psutil.process_iter():
+                pros.append(p.pid)
+            self.assertIn(pid, pros)
+            response = requests.get("http://{ip}:{port}".format(ip=socket.gethostbyname(socket.gethostname()),
+                                                                port=p.port))
+            # self.assertEqual(,response)
+
 
 
 if __name__ == '__main__':
