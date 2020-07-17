@@ -68,37 +68,30 @@ class TestSmartShard(unittest.TestCase):
     def test_cleanup(self):
         peer = SmartShardPeer()
         peer.start()
-        peer.api.config['TESTING'] = True
-        peer.api.config['DEBUG'] = False
         old_pid = peer.pid()
         old_port = peer.port
         del peer
-        time.sleep(10)
+        time.sleep(5)
 
         # get pids of running processes
-        # pids = []
-        # for p in psutil.process_iter():
-        #   pids.append(p.pid)
-        #self.assertNotIn(old_pid, pids)
+        pids = []
+        for p in psutil.process_iter():
+            pids.append(p.pid)
+        self.assertNotIn(old_pid, pids)
 
         # get all open ports
-        #conn = []
-        #for i in psutil.net_connections():
-         #   conn.append(i.laddr.port)
-        #self.assertNotIn(old_port, conn)
+        conn = []
+        for i in psutil.net_connections():
+            conn.append(i.laddr.port)
+            self.assertNotIn(old_port, conn)
 
     def test_setting_instances(self):
         a = SawtoothContainer()
         b = SawtoothContainer()
-        intersection = Intersection(a, b, 'a', 'b')
-
-        peer = SmartShardPeer(intersection)
+        inter = Intersection(a, b, 'a', 'b')
+        peer = SmartShardPeer(inter)
         peer.start()
-
-        peer.api.config['TESTING'] = True
-        peer.api.config['DEBUG'] = False
-
-        client = peer.api.test_client()
+        client = peer.app.api.test_client()
 
         docker = docker_api.from_env()
         # get info on container a
