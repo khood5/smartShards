@@ -3,7 +3,7 @@ from src.util import make_intersecting_committees
 from src.util import make_intersecting_committees_on_host
 from src.api.api_util import forward
 from src.api import create_app
-from src.api.constants import QUORUMS, API_IP, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY
+from src.api.constants import QUORUMS, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY, API_IP
 from src.structures import Transaction
 import unittest
 from mock import patch
@@ -14,11 +14,13 @@ import json
 import gc
 import psutil
 import requests
-import socket
+from random import choice
 
 TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
                                             TRANSACTION_KEY: "test",
                                             TRANSACTION_VALUE: "999"}))
+
+ROOT_RESPONSE = json.loads(json.dumps({API_IP: "127.0.1.1", PORT: "", QUORUM_ID: None}))
 
 
 class TestUtilMethods(unittest.TestCase):
@@ -155,15 +157,24 @@ class TestUtilMethods(unittest.TestCase):
     def test_intersecting_committees_on_host(self):
         peers = make_intersecting_committees_on_host(5, 1)
         for p in peers:
-            pid = p.pid()
+            pid = peers[p].pid()
             pros = []
-            for p in psutil.process_iter():
-                pros.append(p.pid)
+            for pro in psutil.process_iter():
+                pros.append(pro.pid)
             self.assertIn(pid, pros)
-            response = requests.get("http://{ip}:{port}".format(ip=socket.gethostbyname(socket.gethostname()),
-                                                                port=p.port))
-            # self.assertEqual(,response)
+            response = requests.get("http://localhost:{port}".format(port=peers[p].port))
+            peer_response = ROOT_RESPONSE
+            peer_response[PORT] = str(peers[p].port)
+            self.assertEqual(peer_response, dict(response.json()))
+            
 
+    def test_get_tx_from_host(self):
+        peers = make_intersecting_committees_on_host(5, 1)
+        submit_to = choice(list(peers.keys()))
+        committee_id = peers[submit_to].committee_id_a()
+        tx = Transaction(quorum=committee_id, key="test", value="999")
+        url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
+        requests.post(url, json=tx.to_json())
 
 
 if __name__ == '__main__':

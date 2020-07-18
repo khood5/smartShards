@@ -37,8 +37,8 @@ class TestIntersectionMethods(unittest.TestCase):
     def test_peer_setup(self):
         a = SawtoothContainer()
         b = SawtoothContainer()
-        id_a = 1
-        id_b = 2
+        id_a = '1'
+        id_b = '2'
         inter = Intersection(a, b, id_a, id_b)
 
         self.assertEqual(inter.committee_id_a, id_a)
@@ -54,14 +54,14 @@ class TestIntersectionMethods(unittest.TestCase):
         del a, b, inter
         a = SawtoothContainer('host')
         b = SawtoothContainer('host')
-        id_a = 1
-        id_b = 2
+        id_a = '1'
+        id_b = '2'
         inter = Intersection(a, b, id_a, id_b)
         self.assertEqual(inter.attached_network(), 'host')
 
     def test_committee_setup_single(self):
-        id_a = 1
-        id_b = 2
+        id_a = '1'
+        id_b = '2'
 
         containers_a = [SawtoothContainer() for _ in range(4)]
         user_keys_a = [i.user_key() for i in containers_a]

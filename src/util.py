@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import API_IP, QUORUMS, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
 from src.SmartShardPeer import SmartShardPeer
@@ -9,6 +9,7 @@ import logging.handlers
 import requests
 import socket
 import json
+from contextlib import closing
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -100,8 +101,8 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
 def get_neighbors(quorum, network: map):
     neighbors = []
     for neighbor_peer_port in network:
-        neighbor_membership = [network[neighbor_peer_port].api.config[PBFT_INSTANCES].committee_id_a,
-                               network[neighbor_peer_port].api.config[PBFT_INSTANCES].committee_id_b]
+        neighbor_membership = [network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_a,
+                               network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_b]
 
         if quorum == neighbor_membership[0]:
             neighbors.append({
@@ -120,32 +121,40 @@ def get_neighbors(quorum, network: map):
     return neighbors
 
 
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
+
 # starts a set of peers on the same host (differentiated by port number)
 # returns a dict {portNumber : SmartShardPeer}
 def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
-    port_number = 5000
     inter = make_intersecting_committees(number_of_committees, intersections)
     peers = {}
     for i in inter:
-        peers[port_number] = (SmartShardPeer(i, port_number))
-        port_number += 1
-        peers[-1].start()
+        port_number = find_free_port()
+        peers[port_number] = SmartShardPeer(i, port_number)
+        peers[port_number].start()
 
     for port in peers:
-        quorum_id = peers[port].api.config[PBFT_INSTANCES].committee_id_a
-        other_peers = [p for p in peers if peers[p].port != port]
+        quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_a
+        other_peers = {}
+        for p in peers:
+            if peers[p].port != port:
+                other_peers[p] = peers[p]
         add_json = json.loads(json.dumps({
             NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
-        peers_ip = socket.gethostbyname(socket.gethostname())
-        url = "http://{ip}:{port}/add/{quorum}".format(ip=peers_ip, port=port, quorum=quorum_id)
+        url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
 
-        quorum_id = peers[port].api.config[PBFT_INSTANCES].committee_id_b
+        quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
         add_json = json.loads(json.dumps({
             NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
-        url = "http://{ip}:{port}/add/{quorum}".format(ip=peers_ip, port=port, quorum=quorum_id)
+        url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
 
     return peers

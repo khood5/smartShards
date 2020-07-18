@@ -22,7 +22,7 @@ SUB_MIN = 2  # sec
 SUB_MAX = 31
 
 # const
-IP_ADDRESS = "{}".format(socket.gethostbyname(socket.gethostname()))
+IP_ADDRESS = "localhost"
 URL_HOST = "http://{ip}:{port}"
 
 
