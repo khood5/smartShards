@@ -2,8 +2,10 @@ from src.util import stop_all_containers
 from src.util import make_intersecting_committees
 from src.util import make_intersecting_committees_on_host
 from src.api.api_util import forward
+from src.api.api_util import get_plain_test
 from src.api import create_app
 from src.api.constants import QUORUMS, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY, API_IP
+from src.api.constants import ROUTE_EXECUTED_CORRECTLY
 from src.structures import Transaction
 import unittest
 from mock import patch
@@ -14,7 +16,6 @@ import json
 import gc
 import psutil
 import requests
-from random import choice
 
 TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
                                             TRANSACTION_KEY: "test",
@@ -167,14 +168,66 @@ class TestUtilMethods(unittest.TestCase):
             peer_response[PORT] = str(peers[p].port)
             self.assertEqual(peer_response, dict(response.json()))
 
-
     def test_get_tx_from_host(self):
         peers = make_intersecting_committees_on_host(5, 1)
-        submit_to = choice(list(peers.keys()))
-        committee_id = peers[submit_to].committee_id_a()
-        tx = Transaction(quorum=committee_id, key="test", value="999")
+        value = 999
+        for p in peers:
+            submit_to = p
+            committee_id = peers[submit_to].committee_id_a()
+            tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
+            url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
+            result = requests.post(url, json=tx.to_json())
+
+            self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_test(result))
+            time.sleep(3)  # wait for network to confirm
+
+            # get peers in committee
+            committee_members = {}
+            for port in peers:
+                if peers[port].committee_id_a() == committee_id or peers[port].committee_id_b() == committee_id:
+                    committee_members[port] = peers[port]
+
+            for member in committee_members:
+                tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
+                url = "http://localhost:{port}/get/".format(port=member)
+                result = requests.post(url, json=tx.to_json())
+                self.assertEqual(str(value), get_plain_test(result))
+
+            value += 1
+
+    def test_tx_forward_on_host(self):
+        peers = make_intersecting_committees_on_host(5, 1)
+        value = 999
+
+        submit_to = list(peers.keys())[0]
+        target = None
+        for port in peers:
+            if peers[port].committee_id_a() != peers[submit_to].committee_id_a() \
+                    and peers[port].committee_id_a() != peers[submit_to].committee_id_b() \
+                    and peers[port].committee_id_b() != peers[submit_to].committee_id_a() \
+                    and peers[port].committee_id_b() != peers[submit_to].committee_id_b():
+                target = port
+                break
+
+        committee_id = peers[target].committee_id_a()
+        tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
         url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
-        requests.post(url, json=tx.to_json())
+        result = requests.post(url, json=tx.to_json())
+
+        self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_test(result))
+        time.sleep(3)  # wait for network to confirm
+
+        # get peers in committee
+        committee_members = {}
+        for port in peers:
+            if peers[port].committee_id_a() == committee_id or peers[port].committee_id_b() == committee_id:
+                committee_members[port] = peers[port]
+
+        for member in committee_members:
+            tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
+            url = "http://localhost:{port}/get/".format(port=member)
+            result = requests.post(url, json=tx.to_json())
+            self.assertEqual(str(value), get_plain_test(result))
 
 
 if __name__ == '__main__':

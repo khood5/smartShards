@@ -10,8 +10,8 @@ import requests
 import socket
 
 # defaults
-NUMBER_OF_TX = 100
-NUMBER_OF_EXPERIMENTS = 10
+NUMBER_OF_TX = 20
+NUMBER_OF_EXPERIMENTS = 2
 MIN = 10
 MAX = 10
 INTERSECTION = 1
@@ -27,19 +27,19 @@ URL_HOST = "http://{ip}:{port}"
 
 
 # Opens the output file and writes the results in it for each data point
-def make_graph_data(outfile: str, start_size: int, end_size: int, number_of_intersections: int, experiments: int,
+def make_graph_data(outfile: str, min: int, max: int, number_of_intersections: int, experiments: int,
                     total_tx: int):
     out = open(outfile, 'w')
     print("Outputting to {}".format(outfile))
     out.write("Committee size, avg waiting time (sec)\n")
 
-    for committee_size in range(start_size, end_size + 1):
+    for number_of_committees in range(min, max + 1):
         print("---------------------------------------------------------------------------------------")
-        print("Starting experiments for committee size {}".format(committee_size))
-        avgs = get_avg_for(committee_size, number_of_intersections, experiments, total_tx)
-        print("Experiments for committee size {} ended".format(committee_size))
+        print("Starting experiments for committee size {}".format(number_of_committees))
+        avgs = get_avg_for(number_of_committees, number_of_intersections, experiments, total_tx)
+        print("Experiments for committee size {} ended".format(number_of_committees))
         print("---------------------------------------------------------------------------------------")
-        out.write("{s}, {w}\n".format(s=committee_size, w=avgs["waitingTime"]))
+        out.write("{s}, {w}\n".format(s=number_of_committees, w=avgs["waitingTime"]))
     out.close()
 
 
@@ -120,12 +120,12 @@ if __name__ == '__main__':
 
     experiments = NUMBER_OF_EXPERIMENTS if args.e is None else args.e
     total_tx = NUMBER_OF_TX if args.t is None else args.t
-    starting_size = MIN if args.min is None or args.min < 5 else args.min
-    ending_size = MAX if args.max is None else args.max
+    staring_number_of_committees = MIN if args.min is None or args.min < 5 else args.min
+    ending_number_of_committees = MAX if args.max is None else args.max
     number_of_intersections = INTERSECTION if args.i is None else args.i
 
     sawtooth_container_log_to(Path().home().joinpath('{}.SawtoothContainer.log'.format(__file__)))
 
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
 
-    make_graph_data(output_file, starting_size, ending_size, number_of_intersections, experiments, total_tx)
+    make_graph_data(output_file, staring_number_of_committees, ending_number_of_committees, number_of_intersections, experiments, total_tx)

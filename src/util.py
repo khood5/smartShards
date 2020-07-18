@@ -106,7 +106,7 @@ def get_neighbors(quorum, network: map):
 
         if quorum == neighbor_membership[0]:
             neighbors.append({
-                API_IP: "{}".format(socket.gethostbyname(socket.gethostname())),
+                API_IP: "localhost",
                 PORT: "{}".format(neighbor_peer_port),
                 QUORUM_ID: "{}".format(neighbor_membership[1])
             })

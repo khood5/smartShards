@@ -61,7 +61,7 @@ class SmartShardPeer:
         return self.app.pid
 
     def committee_id_a(self):
-        return self.app.api.config[PBFT_INSTANCES].Aid
+        return self.app.api.config[PBFT_INSTANCES].committee_id_a
 
     def committee_id_b(self):
-        return self.app.api.config[PBFT_INSTANCES].Bid
+        return self.app.api.config[PBFT_INSTANCES].committee_id_b
