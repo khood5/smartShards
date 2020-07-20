@@ -1,9 +1,15 @@
 import unittest
 import json
 from src.structures import Transaction
-
+import gc
 
 class TestTransactionMethods(unittest.TestCase):
+
+    def setUp(self):
+        pass
+
+    def tearDown(self) -> None:
+        gc.collect()
 
     def test_transaction_to_json(self):
         tx = Transaction("a")

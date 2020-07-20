@@ -3,7 +3,7 @@ import argparse
 from src.SawtoothPBFT import sawtooth_container_log_to
 from src.util import make_intersecting_committees
 from src.structures import Transaction
-from src.Peer import peer_log_to
+from src.Intersection import intersection_log_to
 from pathlib import Path
 
 # defaults
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     ending_size = MAX if args.max is None else args.max
 
     sawtooth_container_log_to(Path().home().joinpath('BasicIntersectionGraph.SawtoothContainer.log'))
-    peer_log_to(Path().home().joinpath('BasicIntersectionGraph.Peer.log'))
+    intersection_log_to(Path().home().joinpath('BasicIntersectionGraph.Peer.log'))
 
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
     make_graph_data(output_file, starting_size, ending_size, experiments, total_tx, intersections)

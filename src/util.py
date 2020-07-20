@@ -1,11 +1,15 @@
 import docker as docker_api
-from src.api.constants import API_IP, QUORUMS, QUORUM_ID, PORT
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS
 from src.SawtoothPBFT import SawtoothContainer
-from src.Peer import Peer
+from src.Intersection import Intersection
+from src.SmartShardPeer import SmartShardPeer
 import os
 import logging
 import logging.handlers
 import requests
+import socket
+import json
+from contextlib import closing
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -65,7 +69,7 @@ def make_single_intersection(instances: list, committee_size: int):
     peers = []
     for row in range(committee_size + 1):
         for column in range(row, committee_size):
-            peers.append(Peer(instances[row][column], instances[column + 1][row], row, column + 1), )
+            peers.append(Intersection(instances[row][column], instances[column + 1][row], row, column + 1), )
             util_logger.info("In committee {a} committee Member {a_ip} matches {b_ip} in committee {b}".format(
                 a=row,
                 a_ip=instances[row][column].ip(),
@@ -94,22 +98,63 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
     return peers
 
 
-# this function is made to work with a flask app and cannot be used with out passing one to it as app
-def forward(app, url_subdirectory: str, quorum_id: str, json_data):
-    for this_quorum in app.config[QUORUMS]:
-        for intersecting_quorum in app.config[QUORUMS][this_quorum]:
-            if intersecting_quorum[QUORUM_ID] == quorum_id:
-                url = URL_REQUEST.format(hostname=intersecting_quorum[API_IP],
-                                         port=intersecting_quorum[PORT])
-                url += url_subdirectory
-                app.logger.info("request in quorum this peer is not a member of forwarding to "
-                                "{}".format(url))
-                forwarding_request = None
-                try:
-                    forwarding_request = requests.post(url, json=json_data)
-                    app.logger.info("response form forward is {}".format(forwarding_request))
-                except ConnectionError as e:
-                    app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[API_IP],
-                                                                        port=intersecting_quorum[PORT]))
-                    app.logger.error(e)
-                return
+def get_neighbors(quorum, network: map):
+    neighbors = []
+    for neighbor_peer_port in network:
+        neighbor_membership = [network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_a,
+                               network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_b]
+
+        if quorum == neighbor_membership[0]:
+            neighbors.append({
+                API_IP: "localhost",
+                PORT: "{}".format(neighbor_peer_port),
+                QUORUM_ID: "{}".format(neighbor_membership[1])
+            })
+
+        if quorum == neighbor_membership[1]:
+            neighbors.append({
+                API_IP:  "localhost",
+                PORT: "{}".format(neighbor_peer_port),
+                QUORUM_ID: "{}".format(neighbor_membership[0])
+            })
+
+    return neighbors
+
+
+def find_free_port():
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+
+
+# starts a set of peers on the same host (differentiated by port number)
+# returns a dict {portNumber : SmartShardPeer}
+def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
+    inter = make_intersecting_committees(number_of_committees, intersections)
+    peers = {}
+    for i in inter:
+        port_number = find_free_port()
+        peers[port_number] = SmartShardPeer(i, port_number)
+        peers[port_number].start()
+
+    for port in peers:
+        quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_a
+        other_peers = {}
+        for p in peers:
+            if peers[p].port != port:
+                other_peers[p] = peers[p]
+        add_json = json.loads(json.dumps({
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
+        }))
+        url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
+        requests.post(url, json=add_json)
+
+        quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
+        add_json = json.loads(json.dumps({
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
+        }))
+        url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
+        requests.post(url, json=add_json)
+
+    return peers

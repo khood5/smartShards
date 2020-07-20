@@ -3,16 +3,16 @@ import json
 
 
 class Transaction:
-    def __init__(self, quorum="", k="", v=""):
-        self.quorum_id = quorum
-        self.key = k
-        self.value = v
+    def __init__(self, quorum="", key="", value=""):
+        self.quorum_id = str(quorum)
+        self.key = key
+        self.value = value
 
     def id(self):
         # this is the id of the destination quorum
         # the destination quorum is the quorum responsible for
         # confirming the tx
-        return self.quorum_id
+        return str(self.quorum_id)
 
     def to_json(self):
         return json.loads(json.dumps({QUORUM_ID: self.quorum_id,

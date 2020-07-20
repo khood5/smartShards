@@ -1,15 +1,18 @@
 import src.api as api
-from src.api.constants import PEER, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
+from src.SawtoothPBFT import SawtoothContainer
+from src.Intersection import Intersection
+from src.api.constants import PBFT_INSTANCES, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
 from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
+from src.api.api_util import get_plain_text
 import docker as docker_api
 import unittest
 import json
 import warnings
-import threading
 import time
+import gc
 
 TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
                                             TRANSACTION_KEY: "test",
@@ -22,8 +25,8 @@ TRANSACTION_C_JSON = json.loads(json.dumps({QUORUM_ID: "c",
 JOIN_A_JSON = json.loads(json.dumps({
     NEIGHBOURS: [
         {
-            API_IP: "192.168.1.200",
-            DOCKER_IP: "10.10.10.1",
+            API_IP: "192.168.1.200",  # ip for the API
+            DOCKER_IP: "10.10.10.1",  # ip of the container in quorum 'a'
             PORT: "5000",
             QUORUM_ID: "c"
         },
@@ -42,21 +45,30 @@ JOIN_A_JSON = json.loads(json.dumps({
     ]
 }))
 
+ADD_A_JSON = json.loads(json.dumps({
+    NEIGHBOURS: [
+        {
+            API_IP: "192.168.1.200",  # ip for the API
+            PORT: "5000",
+            QUORUM_ID: "c"
+        },
+        {
+            API_IP: "192.168.1.300",
+            PORT: "5000",
+            QUORUM_ID: "d"
+        },
+        {
+            API_IP: "192.168.1.400",
+            PORT: "5000",
+            QUORUM_ID: "e"
+        }
+    ]
+}))
+
 MAKE_GENESIS_JSON = json.loads(json.dumps({
     USER_KEY: ["U_key1", "U_key2", "U_key3"],
     VALIDATOR_KEY: ["VAL_key1", "VAL_key2", "VAL_key3"]
 }))
-
-
-def get_plain_test(response):
-    return response.data.decode("utf-8")
-
-
-def start_test_peer(port=5000):
-    app = api.create_app()
-    app_thread = threading.Thread(target=app.run, kwargs={'port': port})
-    app_thread.start()
-    return app_thread
 
 
 class TestAPI(unittest.TestCase):
@@ -64,12 +76,13 @@ class TestAPI(unittest.TestCase):
     def setUp(self):
         warnings.simplefilter('ignore', category=ResourceWarning)
         docker = docker_api.from_env()
-        if len(docker.containers.list()) is not 0:
+        if len(docker.containers.list()) != 0:
             self.skipTest("There should be no docker containers currently running, there was {} found.\n"
                           "Run \"docker ps\" to see all running containers".format(len(docker.containers.list())))
         docker.close()
 
     def tearDown(self) -> None:
+        gc.collect()
         stop_all_containers()
 
     def test_api_start(self):
@@ -81,17 +94,17 @@ class TestAPI(unittest.TestCase):
         # test that wrong url do nothing
         response = client.get('/start/')
         self.assertEqual(404, response.status_code)
-        self.assertIsNone(app.config[PEER])
+        self.assertIsNone(app.config[PBFT_INSTANCES])
         self.assertEqual({}, app.config[QUORUMS])
         response = client.get('/start/a/')
         self.assertEqual(404, response.status_code)
-        self.assertIsNone(app.config[PEER])
+        self.assertIsNone(app.config[PBFT_INSTANCES])
         self.assertEqual({}, app.config[QUORUMS])
 
         # test actual url works
         response = client.get('/start/a/b')
         self.assertEqual(200, response.status_code)
-        self.assertIsNotNone(app.config[PEER])
+        self.assertIsNotNone(app.config[PBFT_INSTANCES])
         self.assertEqual({'a': [], 'b': []}, app.config[QUORUMS])
         docker = docker_api.from_env()
         self.assertEqual(2, len(docker.containers.list()))
@@ -103,10 +116,10 @@ class TestAPI(unittest.TestCase):
         container_user_key = docker.containers.list()[1].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_test(client.get('/ip/a')), container_ip)
-        self.assertEqual(get_plain_test(client.get('/val+key/a')), container_val_key)
-        self.assertEqual(get_plain_test(client.get('/user+key/a')), container_user_key)
-        self.assertNotEqual(get_plain_test(client.get('/val+key/a')), get_plain_test(client.get('/user+key/a')))
+        self.assertEqual(get_plain_text(client.get('/ip/a')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/a')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/a')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/a')), get_plain_text(client.get('/user+key/a')))
 
         # get info on container b
         container_ip = docker.containers.list()[0].exec_run("hostname -i").output.decode('utf-8').strip()
@@ -115,10 +128,47 @@ class TestAPI(unittest.TestCase):
         container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_test(client.get('/ip/b')), container_ip)
-        self.assertEqual(get_plain_test(client.get('/val+key/b')), container_val_key)
-        self.assertEqual(get_plain_test(client.get('/user+key/b')), container_user_key)
-        self.assertNotEqual(get_plain_test(client.get('/val+key/b')), get_plain_test(client.get('/user+key/b')))
+        self.assertEqual(get_plain_text(client.get('/ip/b')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
+
+    def test_start_with_peer(self):
+        a = SawtoothContainer()
+        b = SawtoothContainer()
+        id_a = 'a'
+        id_b = 'b'
+        p = Intersection(a, b, id_a, id_b)
+
+        app = api.create_app(p)
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+
+        docker = docker_api.from_env()
+        # get info on container a
+        container_ip = docker.containers.list()[1].exec_run("hostname -i").output.decode('utf-8').strip()
+        container_val_key = docker.containers.list()[1].exec_run("cat {val_pub}".format(val_pub=VKEY["pub"])) \
+            .output.decode('utf-8').strip()
+        container_user_key = docker.containers.list()[1].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
+            .output.decode('utf-8').strip()
+
+        self.assertEqual(get_plain_text(client.get('/ip/a')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/a')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/a')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/a')), get_plain_text(client.get('/user+key/a')))
+
+        # get info on container b
+        container_ip = docker.containers.list()[0].exec_run("hostname -i").output.decode('utf-8').strip()
+        container_val_key = docker.containers.list()[0].exec_run("cat {val_pub}".format(val_pub=VKEY["pub"])) \
+            .output.decode('utf-8').strip()
+        container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
+            .output.decode('utf-8').strip()
+
+        self.assertEqual(get_plain_text(client.get('/ip/b')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_api_join(self):
         app = api.create_app()
@@ -131,19 +181,44 @@ class TestAPI(unittest.TestCase):
         self.assertEqual([
             {
                 API_IP: "192.168.1.200",
-                DOCKER_IP: "10.10.10.1",
                 PORT: "5000",
                 QUORUM_ID: "c"
             },
             {
                 API_IP: "192.168.1.300",
-                DOCKER_IP: "10.10.10.2",
                 PORT: "5000",
                 QUORUM_ID: "d"
             },
             {
                 API_IP: "192.168.1.400",
-                DOCKER_IP: "10.10.10.3",
+                PORT: "5000",
+                QUORUM_ID: "e"
+            }
+        ], app.config[QUORUMS]["a"])
+
+        self.assertEqual(app.config[QUORUMS]["b"], [])
+
+    def test_add(self):
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+        client.get('/start/a/b')
+        response = client.post('/add/a', json=ADD_A_JSON)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([
+            {
+                API_IP: "192.168.1.200",
+                PORT: "5000",
+                QUORUM_ID: "c"
+            },
+            {
+                API_IP: "192.168.1.300",
+                PORT: "5000",
+                QUORUM_ID: "d"
+            },
+            {
+                API_IP: "192.168.1.400",
                 PORT: "5000",
                 QUORUM_ID: "e"
             }
@@ -175,8 +250,8 @@ class TestAPI(unittest.TestCase):
         docker = docker_api.from_env()
         self.assertEqual(8, len(docker.containers.list()))
 
-        val_keys = [get_plain_test(p.get('/val+key/a')) for p in peers]
-        usr_keys = [get_plain_test(p.get('/user+key/a')) for p in peers]
+        val_keys = [get_plain_text(p.get('/val+key/a')) for p in peers]
+        usr_keys = [get_plain_text(p.get('/user+key/a')) for p in peers]
 
         genesis_json = json.loads(json.dumps({
             USER_KEY: usr_keys,
@@ -218,8 +293,8 @@ class TestAPI(unittest.TestCase):
         docker = docker_api.from_env()
         self.assertEqual(8, len(docker.containers.list()))
 
-        val_keys = [get_plain_test(p.get('/val+key/a')) for p in peers]
-        usr_keys = [get_plain_test(p.get('/user+key/a')) for p in peers]
+        val_keys = [get_plain_text(p.get('/val+key/a')) for p in peers]
+        usr_keys = [get_plain_text(p.get('/user+key/a')) for p in peers]
 
         genesis_json = json.loads(json.dumps({
             USER_KEY: usr_keys,
@@ -234,7 +309,7 @@ class TestAPI(unittest.TestCase):
         for p in peers:
             # use pretend API address and ports because app is not actually running
             join_request_data[NEIGHBOURS].append(
-                {API_IP: "192.168.1.{}".format(ip), DOCKER_IP: get_plain_test(p.get('/ip/a')),
+                {API_IP: "192.168.1.{}".format(ip), DOCKER_IP: get_plain_text(p.get('/ip/a')),
                  PORT: "5000", QUORUM_ID: quorum})
             ip += 1
             quorum = chr(ord(quorum) + 1)
@@ -247,7 +322,7 @@ class TestAPI(unittest.TestCase):
         time.sleep(3)
 
         for p in peers:
-            self.assertEqual('999', get_plain_test(p.post('/get/', json=TRANSACTION_A_JSON)))
+            self.assertEqual('999', get_plain_text(p.post('/get/', json=TRANSACTION_A_JSON)))
 
 
 if __name__ == "__main__":

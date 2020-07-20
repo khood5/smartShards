@@ -160,6 +160,9 @@ class SawtoothContainer:
         start = time.time()
         while len(self.blocks()['data']) != current_chain_size + 1:
             end = time.time()
+            if end - start > UPDATE_TIMEOUT*0.75:
+                sawtooth_logger.critical("------ MEMBERSHIP UPDATE RETRY ------")
+                self.run_command(update_membership)
             if end - start > UPDATE_TIMEOUT:
                 sawtooth_logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
                 break
@@ -173,6 +176,9 @@ class SawtoothContainer:
         start = time.time()
         while len(self.blocks()['data']) != current_chain_size + 2:
             end = time.time()
+            if end - start > UPDATE_TIMEOUT*0.75:
+                sawtooth_logger.critical("------ PERMISSION UPDATE RETRY ------")
+                self.run_command(update_membership)
             if end - start > UPDATE_TIMEOUT:
                 sawtooth_logger.critical("------ PERMISSION UPDATE TIMEOUT ------")
                 break
