@@ -2,7 +2,7 @@ from src.util import stop_all_containers
 from src.util import make_intersecting_committees
 from src.util import make_intersecting_committees_on_host
 from src.api.api_util import forward
-from src.api.api_util import get_plain_test
+from src.api.api_util import get_plain_text
 from src.api import create_app
 from src.api.constants import QUORUMS, QUORUM_ID, PORT, TRANSACTION_VALUE, TRANSACTION_KEY, API_IP
 from src.api.constants import ROUTE_EXECUTED_CORRECTLY
@@ -178,7 +178,7 @@ class TestUtilMethods(unittest.TestCase):
             url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
             result = requests.post(url, json=tx.to_json())
 
-            self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_test(result))
+            self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
             time.sleep(3)  # wait for network to confirm
 
             # get peers in committee
@@ -191,7 +191,7 @@ class TestUtilMethods(unittest.TestCase):
                 tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
                 url = "http://localhost:{port}/get/".format(port=member)
                 result = requests.post(url, json=tx.to_json())
-                self.assertEqual(str(value), get_plain_test(result))
+                self.assertEqual(str(value), get_plain_text(result))
 
             value += 1
 
@@ -214,7 +214,7 @@ class TestUtilMethods(unittest.TestCase):
         url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
         result = requests.post(url, json=tx.to_json())
 
-        self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_test(result))
+        self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
         time.sleep(3)  # wait for network to confirm
 
         # get peers in committee
@@ -227,7 +227,7 @@ class TestUtilMethods(unittest.TestCase):
             tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
             url = "http://localhost:{port}/get/".format(port=member)
             result = requests.post(url, json=tx.to_json())
-            self.assertEqual(str(value), get_plain_test(result))
+            self.assertEqual(str(value), get_plain_text(result))
 
 
 if __name__ == '__main__':

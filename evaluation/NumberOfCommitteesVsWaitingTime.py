@@ -1,19 +1,22 @@
 from src.util import make_intersecting_committees_on_host
 from src.structures import Transaction
 from src.SawtoothPBFT import sawtooth_container_log_to
-from src.api.api_util import get_plain_test
+from src.Intersection import intersection_log_to
+from src.SmartShardPeer import smart_shard_peer_log_to
+from src.api.api_util import get_plain_text
 from pathlib import Path
 import time
 from random import choice
 import argparse
 import requests
+import gc
 import socket
 
 # defaults
-NUMBER_OF_TX = 20
+NUMBER_OF_TX = 10
 NUMBER_OF_EXPERIMENTS = 2
-MIN = 10
-MAX = 10
+MIN = 5
+MAX = 7
 INTERSECTION = 1
 OUTPUT_FILE = "SawtoothPBFTPerformanceGraph.csv"
 
@@ -55,6 +58,7 @@ def get_avg_for(number_of_committees: int, number_of_intersections: int, experim
         waiting_time += results["waitingTime"]
         print("Cleaning up experiment {}".format(e))
         del peers
+        gc.collect()
 
     return {"waitingTime": sum(waiting_time) / len(waiting_time)}
 
@@ -81,19 +85,25 @@ def run_experiment(peers: dict, total_tx: int):
             submitted_tx[time.time()] = tx
             url = URL_HOST.format(ip=IP_ADDRESS, port=choice(list(peers.keys()))) + "/submit/"
             requests.post(url, json=tx.to_json())
-        print(".", end=" ")
-        check_submitted_tx(waiting_time, submitted_tx, list(peers.keys())[0])
 
+            # show that experiment is running
+            if time.time() % 30:
+                print(" .", end='', flush=True)
+        check_submitted_tx(waiting_time, submitted_tx, list(peers.keys())[0])
     print()
     return {"waitingTime": waiting_time}
 
 
 def check_submitted_tx(waiting, sub, port):
-    url = URL_HOST.format(ip=IP_ADDRESS, port=port + "/get/")
+    url = URL_HOST.format(ip=IP_ADDRESS, port=str(port) + "/get/")
+    remove_from_sub = []
     for tx in sub:
-        if sub[tx].value == get_plain_test(requests.post(url, json=sub[tx].to_json())):
-            waiting.append(tx - time.time())
-            del sub[tx]
+        if sub[tx].value == get_plain_text(requests.post(url, json=sub[tx].to_json())):
+            waiting.append(time.time() - tx)
+            remove_from_sub.append(tx)
+
+    for r in remove_from_sub:
+        del sub[r]
 
 
 if __name__ == '__main__':
@@ -123,9 +133,9 @@ if __name__ == '__main__':
     staring_number_of_committees = MIN if args.min is None or args.min < 5 else args.min
     ending_number_of_committees = MAX if args.max is None else args.max
     number_of_intersections = INTERSECTION if args.i is None else args.i
-
     sawtooth_container_log_to(Path().home().joinpath('{}.SawtoothContainer.log'.format(__file__)))
-
+    intersection_log_to(Path().home().joinpath('{}.Intersection.log'.format(__file__)))
+    smart_shard_peer_log_to(Path().home().joinpath('{}.SmartShardPeer.log'.format(__file__)))
     print("experiments:{e}, total_tx{t}".format(e=experiments, t=total_tx))
 
     make_graph_data(output_file, staring_number_of_committees, ending_number_of_committees, number_of_intersections, experiments, total_tx)

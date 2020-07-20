@@ -35,7 +35,7 @@ class Intersection:
     def make_genesis(self, committee_id, val_keys, user_keys):
         if str(committee_id) == self.committee_id_a:
             self.__instance_a.make_genesis(val_keys, user_keys)
-        elif committee_id == self.committee_id_b:
+        elif str(committee_id) == self.committee_id_b:
             self.__instance_b.make_genesis(val_keys, user_keys)
         else:
             intersection_logger.error('PEER: make_genesis for unknown quorum, '
@@ -48,10 +48,10 @@ class Intersection:
         self.__instance_b.join_sawtooth(committee_b_ips)
 
     def submit(self, tx):
-        if tx.quorum_id == self.committee_id_a:
+        if str(tx.quorum_id) == self.committee_id_a:
             self.__instance_a.submit_tx(tx.key, tx.value)
 
-        elif tx.quorum_id == self.committee_id_b:
+        elif str(tx.quorum_id) == self.committee_id_b:
             self.__instance_b.submit_tx(tx.key, tx.value)
         else:
             intersection_logger.error('PEER: tx submitted for unknown quorum, '
@@ -63,7 +63,7 @@ class Intersection:
         if str(tx.quorum_id) == self.committee_id_a:
             return self.__instance_a.get_tx(tx.key)
 
-        elif tx.quorum_id == self.committee_id_b:
+        elif str(tx.quorum_id) == self.committee_id_b:
             return self.__instance_b.get_tx(tx.key)
         else:
             intersection_logger.error('PEER: tx submitted for unknown quorum, '

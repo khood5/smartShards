@@ -24,7 +24,7 @@ def util_log_to(path, console_logging=False):
 
 
 # get plain text from HTTP GET response
-def get_plain_test(response):
+def get_plain_text(response):
     try:
         return response.data.decode("utf-8")
     except AttributeError:
@@ -48,7 +48,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                                 "{}".format(url))
                 try:
                     forwarding_request = requests.post(url, json=json_data)
-                    forwarding_request = get_plain_test(forwarding_request)
+                    forwarding_request = get_plain_text(forwarding_request)
                     app.logger.info("response form forward is {}".format(forwarding_request))
                     return forwarding_request
                 except ConnectionError as e:

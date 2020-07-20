@@ -4,7 +4,7 @@ from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.util import stop_all_containers
-from src.api.api_util import get_plain_test
+from src.api.api_util import get_plain_text
 import docker as docker_api
 import warnings
 import psutil
@@ -101,10 +101,10 @@ class TestSmartShard(unittest.TestCase):
         container_user_key = docker.containers.list()[1].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_test(client.get('/ip/a')), container_ip)
-        self.assertEqual(get_plain_test(client.get('/val+key/a')), container_val_key)
-        self.assertEqual(get_plain_test(client.get('/user+key/a')), container_user_key)
-        self.assertNotEqual(get_plain_test(client.get('/val+key/a')), get_plain_test(client.get('/user+key/a')))
+        self.assertEqual(get_plain_text(client.get('/ip/a')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/a')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/a')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/a')), get_plain_text(client.get('/user+key/a')))
 
         # get info on container b
         container_ip = docker.containers.list()[0].exec_run("hostname -i").output.decode('utf-8').strip()
@@ -113,7 +113,7 @@ class TestSmartShard(unittest.TestCase):
         container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_test(client.get('/ip/b')), container_ip)
-        self.assertEqual(get_plain_test(client.get('/val+key/b')), container_val_key)
-        self.assertEqual(get_plain_test(client.get('/user+key/b')), container_user_key)
-        self.assertNotEqual(get_plain_test(client.get('/val+key/b')), get_plain_test(client.get('/user+key/b')))
+        self.assertEqual(get_plain_text(client.get('/ip/b')), container_ip)
+        self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
+        self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
+        self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
