@@ -10,7 +10,6 @@ from random import choice
 import argparse
 import requests
 import gc
-import socket
 
 # defaults
 NUMBER_OF_TX = 10
