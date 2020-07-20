@@ -34,7 +34,7 @@ def make_graph_data(outfile: str, min: int, max: int, number_of_intersections: i
                     total_tx: int):
     out = open(outfile, 'w')
     print("Outputting to {}".format(outfile))
-    out.write("Committee size, avg waiting time (sec)\n")
+    out.write("number of committees, average waiting time (sec)\n")
 
     for number_of_committees in range(min, max + 1):
         print("---------------------------------------------------------------------------------------")
