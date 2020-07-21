@@ -41,9 +41,6 @@ class SmartShardPeer:
         del self.app
         smart_shard_peer_log.info('terminating API on {}'.format(self.port))
 
-    def attach_flask(self):
-        self.app.api = create_app(self.peer)
-
     def start(self):
         if self.port is None:
             smart_shard_peer_log.error('start called with no PORT')
@@ -65,3 +62,6 @@ class SmartShardPeer:
 
     def committee_id_b(self):
         return self.app.api.config[PBFT_INSTANCES].committee_id_b
+
+    def notify_new_peer(self, newPeer):
+        # Will notify this peer of a new peer joining the network

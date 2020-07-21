@@ -1,9 +1,13 @@
+import requests
+
 from src.SmartShardPeer import SmartShardPeer
 from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
-from src.util import stop_all_containers
+from src.api.constants import ROUTE_EXECUTED_CORRECTLY
+from src.structures import Transaction
+from src.util import stop_all_containers, make_intersecting_committees_on_host
 from src.api.api_util import get_plain_text
 import docker as docker_api
 import warnings
@@ -11,6 +15,9 @@ import psutil
 import unittest
 import time
 import gc
+
+from random import seed
+from random import random
 
 
 class TestSmartShard(unittest.TestCase):
@@ -117,3 +124,22 @@ class TestSmartShard(unittest.TestCase):
         self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
         self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
+
+    def test_cooperative_churn(self):
+        # set up initial network
+        peers = make_intersecting_committees_on_host(5, 1)
+        value = 999
+        for p in peers:
+            # Confirm some initial transactions
+            submit_to = p
+            committee_id = peers[submit_to].committee_id_a()
+            tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
+            url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
+            result = requests.post(url, json=tx.to_json())
+            self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
+            time.sleep(3)  # wait for network to confirm
+
+        # pick a random peer to notify of join
+        seed(gmtime())
+        randPeer = peers[random()]
+
