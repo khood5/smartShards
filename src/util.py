@@ -9,6 +9,7 @@ import logging.handlers
 import requests
 import socket
 import json
+import time
 from contextlib import closing
 
 logging.basicConfig(
@@ -54,6 +55,8 @@ def make_sawtooth_committee(size: int):
     committee_ips = [p.ip() for p in peers]
     for p in peers:
         p.join_sawtooth(committee_ips)
+
+    time.sleep(3)  # give peers some time to start
 
     done = False
     while not done:
