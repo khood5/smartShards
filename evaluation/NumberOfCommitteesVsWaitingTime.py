@@ -129,7 +129,7 @@ if __name__ == '__main__':
 
     experiments = NUMBER_OF_EXPERIMENTS if args.e is None else args.e
     total_tx = NUMBER_OF_TX if args.t is None else args.t
-    staring_number_of_committees = MIN if args.min is None or args.min < 5 else args.min
+    staring_number_of_committees = MIN if args.min is None else args.min
     ending_number_of_committees = MAX if args.max is None else args.max
     number_of_intersections = INTERSECTION if args.i is None else args.i
     sawtooth_container_log_to(Path().home().joinpath('{}.SawtoothContainer.log'.format(__file__)))
