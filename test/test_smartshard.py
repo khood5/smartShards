@@ -16,8 +16,7 @@ import unittest
 import time
 import gc
 
-from random import seed
-from random import random
+import random
 
 
 class TestSmartShard(unittest.TestCase):
@@ -108,10 +107,10 @@ class TestSmartShard(unittest.TestCase):
         container_user_key = docker.containers.list()[1].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_text(client.get('/ip/a')), container_ip)
-        self.assertEqual(get_plain_text(client.get('/val+key/a')), container_val_key)
-        self.assertEqual(get_plain_text(client.get('/user+key/a')), container_user_key)
-        self.assertNotEqual(get_plain_text(client.get('/val+key/a')), get_plain_text(client.get('/user+key/a')))
+        self.assertEqual(get_plain_test(client.get('/ip/a')), container_ip)
+        self.assertEqual(get_plain_test(client.get('/val+key/a')), container_val_key)
+        self.assertEqual(get_plain_test(client.get('/user+key/a')), container_user_key)
+        self.assertNotEqual(get_plain_test(client.get('/val+key/a')), get_plain_test(client.get('/user+key/a')))
 
         # get info on container b
         container_ip = docker.containers.list()[0].exec_run("hostname -i").output.decode('utf-8').strip()
@@ -120,26 +119,40 @@ class TestSmartShard(unittest.TestCase):
         container_user_key = docker.containers.list()[0].exec_run("cat {user_pub}".format(user_pub=UKEY["pub"])) \
             .output.decode('utf-8').strip()
 
-        self.assertEqual(get_plain_text(client.get('/ip/b')), container_ip)
-        self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
-        self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
-        self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
+        self.assertEqual(get_plain_test(client.get('/ip/b')), container_ip)
+        self.assertEqual(get_plain_test(client.get('/val+key/b')), container_val_key)
+        self.assertEqual(get_plain_test(client.get('/user+key/b')), container_user_key)
+        self.assertNotEqual(get_plain_test(client.get('/val+key/b')), get_plain_test(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
+        num_apis = 5
         # set up initial network
-        peers = make_intersecting_committees_on_host(5, 1)
-        value = 999
-        for p in peers:
-            # Confirm some initial transactions
-            submit_to = p
-            committee_id = peers[submit_to].committee_id_a()
-            tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
-            url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
-            result = requests.post(url, json=tx.to_json())
-            self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
-            time.sleep(3)  # wait for network to confirm
+        peers = make_intersecting_committees_on_host(num_apis, 1)
 
-        # pick a random peer to notify of join
-        seed(gmtime())
-        randPeer = peers[random()]
+        # pick a random peer to leave
+        random.seed(time.gmtime())
+
+        rand_port = random.choice(list(peers.keys()))
+        rand_peer = peers[rand_port]
+        rand_peer_pid = rand_peer.pid()
+
+        # Make sure random peer is a valid process before the leave
+        running_processes_before_leave = []
+        for p in psutil.process_iter():
+            running_processes_before_leave.append(p.pid)
+
+        self.assertIn(rand_peer_pid, running_processes_before_leave)
+
+        rand_peer.leave(peers)
+        print(str(rand_peer_pid) + " has left the network, waiting 5 seconds to ensure its absence.")
+        time.sleep(5)
+
+        # Random peer should no longer be running
+        running_processes_after_leave = []
+        for p in psutil.process_iter():
+            running_processes_after_leave.append(p.pid)
+
+        self.assertNotIn(rand_peer_pid, running_processes_after_leave)
+
+        # Come back and ensure this process is not present in other peers
 

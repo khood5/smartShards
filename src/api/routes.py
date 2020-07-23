@@ -98,9 +98,34 @@ def add_routes(app):
                                                            "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
                 e)
 
-        app.logger.info("Joining {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
+        app.logger.info("Adding {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
+        return ROUTE_EXECUTED_CORRECTLY
+
+     # remove neighbor from API after it leaves
+    @app.route('/remove/<quorum_id>', methods=['POST'])
+    def remove(quorum_id=None):
+        req = get_json(request, app)
+        neighbours = req['NODE']
+        
+        # try to access peer object (if peer is inaccessible then peer has not started)
+        try:
+            # check and make sure peer is in quorum
+            if not app.config[PBFT_INSTANCES].in_committee(quorum_id):
+                app.logger.info("Peer not in committee {}, leaving PBFT.".format(quorum_id))
+                return ROUTE_EXECUTION_FAILED.format(msg="Peer not in committee {} can not leave PBFT"
+                                                     .format('quorum_id'))
+        except AttributeError as e:
+            app.logger.error("Peer not started request /start/<quorum_id_a>/<quorum_id_b> first")
+            app.logger.error(e)
+            return ROUTE_EXECUTION_FAILED.format(msg="") + "Non-started peer attempted to cooperatively leave." \
+                                                           "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
+                e)
+
+        app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
+        # remove neighbour info from app
+        app.config[QUORUMS][quorum_id] = None
         return ROUTE_EXECUTED_CORRECTLY
 
     # request that genesis be made

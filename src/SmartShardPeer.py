@@ -1,10 +1,16 @@
+import requests
+
+from src.Intersection import Intersection
+from src.SawtoothPBFT import SawtoothContainer
 from src.api import create_app
-from src.api.constants import PBFT_INSTANCES
+from src.api.api_util import get_plain_text
+from src.api.constants import PBFT_INSTANCES, QUORUMS, NEIGHBOURS, API_IP, PORT, DOCKER_IP, QUORUM_ID
 import logging
 import logging.handlers
 import multiprocessing as mp
 import os
-
+import json
+import random
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -40,6 +46,7 @@ class SmartShardPeer:
         self.app.join()  # wait for app kill to fully complete
         del self.app
         smart_shard_peer_log.info('terminating API on {}'.format(self.port))
+        del self.port
 
     def start(self):
         if self.port is None:
@@ -52,7 +59,9 @@ class SmartShardPeer:
         self.app = mp.Process(target=self.app.api.run, kwargs=({'port': self.port}))
         self.app.api = temp
         self.app.daemon = True  # run the api as daemon so it terminates with the peer process process
+
         self.app.start()
+        
 
     def pid(self):
         return self.app.pid
@@ -63,5 +72,16 @@ class SmartShardPeer:
     def committee_id_b(self):
         return self.app.api.config[PBFT_INSTANCES].committee_id_b
 
-    def notify_new_peer(self, newPeer):
-        # Will notify this peer of a new peer joining the network
+    def port(self):
+        return self.port
+
+    def leave(self, notify_peers):
+        quorums = [self.committee_id_a(), self.committee_id_b()]
+        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorums[0]) + ", " + str(quorums[1]))
+
+        for port in list(notify_peers.keys()):
+            for committee in quorums:
+                url = "http://localhost:{port}/remove/{quorum}".format(port=self.port, quorum=committee)
+                requests.post(url, json={'NODE': str(committee)})
+
+        self.__del__()
