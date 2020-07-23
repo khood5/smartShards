@@ -75,13 +75,22 @@ class SmartShardPeer:
     def port(self):
         return self.port
 
+    # Leave the network cooperatively
     def leave(self, notify_peers):
         quorums = [self.committee_id_a(), self.committee_id_b()]
         print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorums[0]) + ", " + str(quorums[1]))
 
+        # Notify neighbors
         for port in list(notify_peers.keys()):
             for committee in quorums:
-                url = "http://localhost:{port}/remove/{quorum}".format(port=self.port, quorum=committee)
-                requests.post(url, json={'NODE': str(committee)})
+                if port != self.port:
+                    url = "http://localhost:{port}/remove/{quorum}".format(port=port, quorum=committee)
+                    requests.post(url, json={'NODE': str(committee)})
 
-        self.__del__()
+        # Remove self from network
+        self.app.terminate()
+        self.app.join()
+        del notify_peers[self.port]
+
+        # Return the new state of the network
+        return notify_peers

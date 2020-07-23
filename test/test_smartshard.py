@@ -5,7 +5,7 @@ from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
-from src.api.constants import ROUTE_EXECUTED_CORRECTLY
+from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS
 from src.structures import Transaction
 from src.util import stop_all_containers, make_intersecting_committees_on_host
 from src.api.api_util import get_plain_text
@@ -125,9 +125,9 @@ class TestSmartShard(unittest.TestCase):
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
-        num_apis = 5
+        num_committees = 9
         # set up initial network
-        peers = make_intersecting_committees_on_host(num_apis, 1)
+        peers = make_intersecting_committees_on_host(num_committees, 1)
 
         # pick a random peer to leave
         random.seed(time.gmtime())
@@ -135,6 +135,7 @@ class TestSmartShard(unittest.TestCase):
         rand_port = random.choice(list(peers.keys()))
         rand_peer = peers[rand_port]
         rand_peer_pid = rand_peer.pid()
+        rand_peer_quorums = [rand_peer.committee_id_a(), rand_peer.committee_id_b()]
 
         # Make sure random peer is a valid process before the leave
         running_processes_before_leave = []
@@ -143,7 +144,22 @@ class TestSmartShard(unittest.TestCase):
 
         self.assertIn(rand_peer_pid, running_processes_before_leave)
 
-        rand_peer.leave(peers)
+        # Ensure peer is in the dict of peers
+        self.assertIn(rand_port, list(peers.keys()))
+
+        quorum_exists = False
+
+        # Ensure quorum exists in some other peer prior to leaving
+        for port in list(peers.keys()):
+            for quorum_id in rand_peer_quorums:
+                for found_quorum_id in peers[port].app.api.config[QUORUMS]:
+                    if str(quorum_id) == str(found_quorum_id):
+                        quorum_exists = True
+                        break
+
+        #self.assertEqual(quorum_exists, True)
+
+        peers = rand_peer.leave(peers)
         print(str(rand_peer_pid) + " has left the network, waiting 5 seconds to ensure its absence.")
         time.sleep(5)
 
@@ -152,7 +168,14 @@ class TestSmartShard(unittest.TestCase):
         for p in psutil.process_iter():
             running_processes_after_leave.append(p.pid)
 
+        # Leaving API process has been terminated
         self.assertNotIn(rand_peer_pid, running_processes_after_leave)
 
-        # Come back and ensure this process is not present in other peers
+        # Leaving API process has been removed from peers dict
+        self.assertNotIn(rand_port, list(peers.keys()))
+
+        # Quorums have been removed from Sawtooth in all neighbors
+        for port in list(peers.keys()):
+            for quorum_id in rand_peer_quorums:
+                self.assertNotIn(str(quorum_id), peers[port].app.api.config[QUORUMS])
 

@@ -113,7 +113,7 @@ def add_routes(app):
         try:
             # check and make sure peer is in quorum
             if not app.config[PBFT_INSTANCES].in_committee(quorum_id):
-                app.logger.info("Peer not in committee {}, leaving PBFT.".format(quorum_id))
+                app.logger.info("Peer not in committee {}, ignoring remove request.".format(quorum_id))
                 return ROUTE_EXECUTION_FAILED.format(msg="Peer not in committee {} can not leave PBFT"
                                                      .format('quorum_id'))
         except AttributeError as e:
