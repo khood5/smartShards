@@ -125,7 +125,7 @@ class TestSmartShard(unittest.TestCase):
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
-        num_committees = 9
+        num_committees = 7
         # set up initial network
         peers = make_intersecting_committees_on_host(num_committees, 1)
 
@@ -152,12 +152,15 @@ class TestSmartShard(unittest.TestCase):
         # Ensure quorum exists in some other peer prior to leaving
         for port in list(peers.keys()):
             for quorum_id in rand_peer_quorums:
+                print("quorums found:")
+                print(peers[port].app.api.config[QUORUMS])
                 for found_quorum_id in peers[port].app.api.config[QUORUMS]:
+                    print("searching for " + str(quorum_id))
                     if str(quorum_id) == str(found_quorum_id):
                         quorum_exists = True
                         break
 
-        #self.assertEqual(quorum_exists, True)
+        # self.assertEqual(True, quorum_exists) # Needs fix, seems no peers have any quorums at all at the beginning
 
         peers = rand_peer.leave(peers)
         print(str(rand_peer_pid) + " has left the network, waiting 5 seconds to ensure its absence.")
@@ -174,7 +177,7 @@ class TestSmartShard(unittest.TestCase):
         # Leaving API process has been removed from peers dict
         self.assertNotIn(rand_port, list(peers.keys()))
 
-        # Quorums have been removed from Sawtooth in all neighbors
+        # Relevant quorums removed from all neighbors
         for port in list(peers.keys()):
             for quorum_id in rand_peer_quorums:
                 self.assertNotIn(str(quorum_id), peers[port].app.api.config[QUORUMS])
