@@ -5,7 +5,7 @@ from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
-from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS
+from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS, PBFT_INSTANCES
 from src.structures import Transaction
 from src.util import stop_all_containers, make_intersecting_committees_on_host
 from src.api.api_util import get_plain_text
@@ -125,17 +125,18 @@ class TestSmartShard(unittest.TestCase):
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
-        num_committees = 7
+        num_committees = 6
         # set up initial network
         peers = make_intersecting_committees_on_host(num_committees, 1)
 
         # pick a random peer to leave
         random.seed(time.gmtime())
-
         rand_port = random.choice(list(peers.keys()))
         rand_peer = peers[rand_port]
         rand_peer_pid = rand_peer.pid()
         rand_peer_quorums = [rand_peer.committee_id_a(), rand_peer.committee_id_b()]
+
+        rand_inter = rand_peer.app.api.config[PBFT_INSTANCES]
 
         # Make sure random peer is a valid process before the leave
         running_processes_before_leave = []

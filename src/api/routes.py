@@ -103,11 +103,11 @@ def add_routes(app):
         app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
 
-     # remove neighbor from API after it leaves
+    # remove neighbor from API after it leaves
     @app.route('/remove/<quorum_id>', methods=['POST'])
     def remove(quorum_id=None):
         req = get_json(request, app)
-        neighbours = req['NODE']
+        # neighbours = req['NODE']
         
         # try to access peer object (if peer is inaccessible then peer has not started)
         try:
@@ -125,7 +125,9 @@ def add_routes(app):
 
         app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
         # remove neighbour info from app
+
         app.config[QUORUMS][quorum_id] = None
+
         return ROUTE_EXECUTED_CORRECTLY
 
     # request that genesis be made

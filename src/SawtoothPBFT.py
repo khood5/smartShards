@@ -148,7 +148,8 @@ class SawtoothContainer:
         self.start_sawtooth(ips)
 
     # this re-config the committee so that all peers in keys can A vote and B edit settings
-    def update_committee(self, validator_keys: list, user_keys: list):
+    def update_committee(self, validator_keys: list, user_keys: list, removing=None):
+        removing = removing or True
         if len(validator_keys) < 4:
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
 
@@ -156,9 +157,16 @@ class SawtoothContainer:
         update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
         self.run_command(update_membership)
 
+        updatecheck = 1
+        permissioncheck = 2
+
+        if removing:
+            updatecheck = 0
+            permissioncheck = 0
+
         # wait for new member to be added
         start = time.time()
-        while len(self.blocks()['data']) != current_chain_size + 1:
+        while len(self.blocks()['data']) != current_chain_size + updatecheck:
             end = time.time()
             if end - start > UPDATE_TIMEOUT*0.75:
                 sawtooth_logger.critical("------ MEMBERSHIP UPDATE RETRY ------")
@@ -174,7 +182,7 @@ class SawtoothContainer:
         self.run_command(update_permissions)
 
         start = time.time()
-        while len(self.blocks()['data']) != current_chain_size + 2:
+        while len(self.blocks()['data']) != current_chain_size + permissioncheck:
             end = time.time()
             if end - start > UPDATE_TIMEOUT*0.75:
                 sawtooth_logger.critical("------ PERMISSION UPDATE RETRY ------")
