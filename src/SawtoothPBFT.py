@@ -37,7 +37,8 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o pbft-settings.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
-                                                                      sawtooth.consensus.pbft.idle_timeout=300000\
+                                                                      sawtooth.consensus.pbft.idle_timeout=300000 \
+                                                                      sawtooth.consensus.pbft.commit_timeout=150000 \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\'",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
