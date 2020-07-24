@@ -37,6 +37,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o pbft-settings.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
+                                                                      sawtooth.consensus.pbft.idle_timeout=300000\
                                                                       sawtooth.consensus.pbft.members=\'{keys}\'",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
@@ -81,7 +82,7 @@ LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 def sawtooth_container_log_to(path, console_logging=False):
-    handler = logging.handlers.RotatingFileHandler(path,  backupCount=5, maxBytes=LOG_FILE_SIZE)
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     sawtooth_logger.propagate = console_logging
@@ -151,36 +152,38 @@ class SawtoothContainer:
     def update_committee(self, validator_keys: list, user_keys: list):
         if len(validator_keys) < 4:
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
+        if len(validator_keys) != len(user_keys):
+            sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP VALIDATOR/USER KEY MISMATCH ------!!!!!!")
+            sawtooth_logger.error("!!!!!!------        PEER UPDATING MEMBERSHIP UPDATE SKIPPED       ------!!!!!!")
+            return
 
-        current_chain_size = len(self.blocks()['data'])
+        logging.info("{ip}: submitted membership update".format(ip=self.ip()))
         update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
-        self.run_command(update_membership)
+        self.__update(update_membership)
 
-        # wait for new member to be added
-        start = time.time()
-        while len(self.blocks()['data']) != current_chain_size + 1:
-            end = time.time()
-            if end - start > UPDATE_TIMEOUT*0.75:
-                sawtooth_logger.critical("------ MEMBERSHIP UPDATE RETRY ------")
-                self.run_command(update_membership)
-            if end - start > UPDATE_TIMEOUT:
-                sawtooth_logger.critical("------ MEMBERSHIP UPDATE TIMEOUT ------")
-                break
-            time.sleep(1)
         time.sleep(1)
+
+        logging.info("{ip}: submitted permission update".format(ip=self.ip()))
         keys = '{}'.format(user_keys)
         keys = keys.strip("[]").replace("\'", "")
         update_permissions = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
-        self.run_command(update_permissions)
+        self.__update(update_permissions)
 
+        logging.info("{}: update complete".format(self.ip()))
+
+    def __update(self, command: str):
+        current_chain_size = len(self.blocks()['data'])
+        self.run_command(command)
+        # wait for update
         start = time.time()
-        while len(self.blocks()['data']) != current_chain_size + 2:
+        while len(self.blocks()['data']) <= current_chain_size:
             end = time.time()
-            if end - start > UPDATE_TIMEOUT*0.75:
-                sawtooth_logger.critical("------ PERMISSION UPDATE RETRY ------")
-                self.run_command(update_membership)
+            if end - start > UPDATE_TIMEOUT * 0.75:
+                sawtooth_logger.critical("------ UPDATE RETRY ------")
+                self.run_command(command)
+                time.sleep(1)
             if end - start > UPDATE_TIMEOUT:
-                sawtooth_logger.critical("------ PERMISSION UPDATE TIMEOUT ------")
+                sawtooth_logger.critical("------ UPDATE TIMEOUT ------")
                 break
             time.sleep(1)
 
@@ -217,7 +220,12 @@ class SawtoothContainer:
 
     # return the blocks in this peers blockchain
     def blocks(self):
-        return self.sawtooth_api('http://localhost:8008/blocks')
+        blocks = self.sawtooth_api('http://localhost:8008/blocks')
+        if 'data' in blocks:
+            return blocks
+        else:
+            logging.warning("{ip}: could not get blocks got {b} instead".format(ip=self.ip(), b=blocks))
+            return json.loads(json.dumps({'data': []}))
 
     # returns all currently running process in this peer
     def top(self):
@@ -241,6 +249,11 @@ class SawtoothContainer:
         command = 'curl -sS {}'.format(request)
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
         sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
-        return json.loads(result)
-
-
+        if result != "curl: (7) Failed to connect to localhost port 8008: Connection timed out" and \
+                result != "curl: (56) Recv failure: Connection timed out":
+            return json.loads(result)
+        else:
+            sawtooth_logger.warning("{ip}: api failed to complete request {t}:{r}".format(ip=self.ip(),
+                                                                                          t=type(result),
+                                                                                          r=result))
+            return json.loads(json.dumps({'data': []}))

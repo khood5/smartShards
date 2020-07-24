@@ -137,7 +137,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_transaction_confirmation(self):
         peers = make_sawtooth_committee(4)
-        number_of_tx = 1
+        number_of_tx = 3
         for p in peers:
             p.submit_tx('test{}'.format(number_of_tx), '999')
             number_of_tx += 1
@@ -164,7 +164,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_fault_tolerance(self):
         peers = make_sawtooth_committee(7)
-        number_of_tx = 1  # genesis
+        number_of_tx = 3  # genesis
 
         del peers[0]
         peers[0].submit_tx('test{}'.format(number_of_tx), '999')
@@ -189,21 +189,21 @@ class TestSawtoothMethods(unittest.TestCase):
         time.sleep(3)
         for p in peers:
             blocks = p.blocks()['data']
-            self.assertEqual(2, len(blocks))
+            self.assertEqual(4, len(blocks))
 
-        peers = make_sawtooth_committee(26)
+        peers = make_sawtooth_committee(80)
         peers[0].submit_tx('test', '999')
         time.sleep(3)
         for p in peers:
             blocks = p.blocks()['data']
-            self.assertEqual(2, len(blocks))
+            self.assertEqual(4, len(blocks))
 
     def test_peer_join(self):
         peers = make_sawtooth_committee(4)
         peers.append(SawtoothContainer())
         peers[-1].join_sawtooth([p.ip() for p in peers])
         peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        blockchain_size = 3  # genesis+2 tx added 1 for membership and 1 for admin rights of new peer
+        blockchain_size = 5  # genesis(1) +2 for committee formation tx added +2 for membership/admin rights of new peer
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
         # and make sure they all have the three tx
@@ -227,12 +227,13 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_committee_growth(self):
         peers = make_sawtooth_committee(4)
-        blockchain_size = 1
+        blockchain_size = 3
         for i in range(15):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
+            time.sleep(0.5 * blockchain_size)  # give ever peer a chance to get update
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
         # and make sure they all have the three tx
@@ -249,7 +250,7 @@ class TestSawtoothMethods(unittest.TestCase):
     # make sure that if all old peers (original ones in the committee) crash the committee can proceed
     def test_new_peer_replace_old(self):
         peers = make_sawtooth_committee(4)
-        blockchain_size = 1
+        blockchain_size = 3
         for i in range(20):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
@@ -268,7 +269,7 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_peer_leave(self):
         peers = make_sawtooth_committee(7)
-        blockchain_size = 1
+        blockchain_size = 3
 
         old_peer = peers.pop()
         peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
@@ -309,11 +310,12 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_committee_shrink(self):
         peers = make_sawtooth_committee(15)
-        blockchain_size = 1
+        blockchain_size = 2
         for i in range(11):
             old_peer = peers.pop()
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
+            time.sleep(0.5 * blockchain_size)  # give ever peer a chance to get update
             del old_peer
 
         peers[0].submit_tx('test', '999')
@@ -325,18 +327,20 @@ class TestSawtoothMethods(unittest.TestCase):
 
     def test_committee_churn(self):
         peers = make_sawtooth_committee(4)
-        blockchain_size = 1
+        blockchain_size = 3
         for i in range(4):
             # add new peer
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
+            time.sleep(0.5 * blockchain_size)  # give ever peer a chance to get update
 
             # remove old peer
             old_peer = peers.pop(0)
             peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
             blockchain_size += 2
+            time.sleep(0.5 * blockchain_size)  # give ever peer a chance to get update
             del old_peer
 
         peers[0].submit_tx('test', '999')
@@ -354,14 +358,14 @@ class TestSawtoothMethods(unittest.TestCase):
         set_a[0].submit_tx(tx_a, '999')
         time.sleep(3)
         for p in set_a:
-            self.assertEqual(2, len(p.blocks()['data']))
+            self.assertEqual(4, len(p.blocks()['data']))
         for p in set_b:
-            self.assertEqual(1, len(p.blocks()['data']))
+            self.assertEqual(3, len(p.blocks()['data']))
 
         set_b[0].submit_tx(tx_b, '888')
         time.sleep(3)
         for p in set_b:
-            self.assertEqual(2, len(p.blocks()['data']))
+            self.assertEqual(4, len(p.blocks()['data']))
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 import docker as docker_api
 from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS
 from src.SawtoothPBFT import SawtoothContainer
+from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
 from src.SmartShardPeer import SmartShardPeer
 import os
@@ -49,20 +50,24 @@ def get_container_ids():
 
 
 # makes a test committee of user defined size
-def make_sawtooth_committee(size: int):
-    peers = [SawtoothContainer() for _ in range(size)]
+def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
+    peers = [SawtoothContainer(network) for _ in range(size)]
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
+
     committee_ips = [p.ip() for p in peers]
     for p in peers:
         p.join_sawtooth(committee_ips)
 
-    time.sleep(3)  # give peers some time to start
+    # if the there are a lot of containers running wait longer for process to start
+    time.sleep(1 * size)
 
     done = False
     while not done:
         done = True
         for p in peers:
-            if len(p.blocks()['data']) != 1:
+            if len(p.blocks()['data']) > 1:
+                logging.info("Peer {ip} not up to date, expected 3 blocks got {b}".format(ip=p.ip(),
+                                                                                          b=p.blocks()['data']))
                 done = False
 
     return peers
@@ -116,7 +121,7 @@ def get_neighbors(quorum, network: map):
 
         if quorum == neighbor_membership[1]:
             neighbors.append({
-                API_IP:  "localhost",
+                API_IP: "localhost",
                 PORT: "{}".format(neighbor_peer_port),
                 QUORUM_ID: "{}".format(neighbor_membership[0])
             })
