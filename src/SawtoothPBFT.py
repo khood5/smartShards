@@ -59,7 +59,7 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 90
+UPDATE_TIMEOUT = 60
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
