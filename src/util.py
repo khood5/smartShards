@@ -58,7 +58,8 @@ def make_sawtooth_committee(size: int):
     for p in peers:
         p.join_sawtooth(committee_ips)
 
-    time.sleep(3)
+    time.sleep(3)  # give peers some time to start
+
     done = False
     while not done:
         done = True
