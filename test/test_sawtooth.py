@@ -179,7 +179,7 @@ class TestSawtoothMethods(unittest.TestCase):
         number_of_tx += 1
         # can take some time for peers to commit (potentially 5 min for failed leader)
         self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test{}'.format(number_of_tx - 1),
-                               timeout=VIEW_CHANGE_WAIT_TIME_SEC * len(peers)))
+                                               timeout=VIEW_CHANGE_WAIT_TIME_SEC * len(peers)))
         for p in peers:
             self.assertEqual(number_of_tx, len(p.blocks()['data']), "Peers did not commit tx in time")
 
@@ -309,9 +309,9 @@ class TestSawtoothMethods(unittest.TestCase):
                         self.assertIn("tcp://{}:8800".format(ip), peers_config)
 
     def test_new_peer_replace_old(self):  # make sure that if all original peers crash the committee can proceed
-        peers = make_sawtooth_committee(4)
+        peers = make_sawtooth_committee(7)
         blockchain_size = 1
-        for i in range(26):
+        for i in range(13):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
             # wait for blockchain catch up
@@ -340,9 +340,9 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_peer_leave(self):
-        peers = make_sawtooth_committee(7)
+        peers = make_sawtooth_committee(8)
         blockchain_size = 1
-        
+
         old_peer = peers.pop()
         peers[0].update_committee([p.val_key() for p in peers])
         self.assertTrue(check_for_confirmation(peers, blockchain_size))
@@ -360,29 +360,6 @@ class TestSawtoothMethods(unittest.TestCase):
         self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test'))
         for p in peers:
             self.assertEqual('999', p.get_tx('test'))
-            self.assertEqual(blockchain_size, len(p.blocks()['data']))
-
-        # remove multiple members
-        old_peers = peers[:2]
-        peers.pop()
-        peers.pop()
-        peers[0].update_committee([p.val_key() for p in peers])
-        self.assertTrue(check_for_confirmation(peers, blockchain_size))
-        blockchain_size += 1
-        time.sleep(VIEW_CHANGE_WAIT_TIME_SEC)
-
-        del old_peers
-        gc.collect()  # make sure that the containers are shutdown
-
-        for p in peers:
-            self.assertEqual(blockchain_size, len(p.blocks()['data']))
-
-        # make sure consensus still works
-        peers[0].submit_tx('test2', '888')
-        blockchain_size += 1
-        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test2'))
-        for p in peers:
-            self.assertEqual('888', p.get_tx('test2'))
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
