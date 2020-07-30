@@ -1,3 +1,9 @@
+import json
+import multiprocessing
+from multiprocessing import Pipe
+
+import requests
+
 from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID
 from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USER_KEY, DOCKER_IP
 from src.SawtoothPBFT import SawtoothContainer
@@ -7,7 +13,6 @@ from src.api.api_util import forward
 from flask import jsonify, request
 import socket
 
-
 def get_json(request, app):
     # try and parse json
     try:
@@ -16,7 +21,6 @@ def get_json(request, app):
         app.logger.error(e)
         return ROUTE_EXECUTION_FAILED.format(msg=e)
     return req
-
 
 def shutdown(id):
     #system("kill " + str(id))
@@ -57,6 +61,7 @@ def add_routes(app):
     def join(quorum_id=None):
         req = get_json(request, app)
         neighbours = req[NEIGHBOURS]
+        port = req[PORT]
         # try to access peer object (if peer is inaccessible then peer has not started)
         try:
             # check and make sure peer is in quorum
@@ -70,12 +75,14 @@ def add_routes(app):
             return ROUTE_EXECUTION_FAILED.format(msg="") + "Peer not started request " \
                                                            "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(e)
 
-        app.logger.info("Joining {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
+        app.logger.info("localhost:" + str(port) + " joining quorum ID {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         # get sawtooth container ip address
-        ips = [n.pop(DOCKER_IP) for n in app.config[QUORUMS][quorum_id]]
+
+        ips = [n.pop(API_IP) for n in app.config[QUORUMS][quorum_id]]
         ips.append(app.config[PBFT_INSTANCES].ip(quorum_id))
+
         app.config[PBFT_INSTANCES].peer_join(quorum_id, ips)  # use sawtooth container ip to start sawtooth
         return ROUTE_EXECUTED_CORRECTLY
 
@@ -84,6 +91,7 @@ def add_routes(app):
     def add(quorum_id=None):
         req = get_json(request, app)
         neighbours = req[NEIGHBOURS]
+        port = req[PORT]
         # try to access peer object (if peer is inaccessible then peer has not started)
         try:
             # check and make sure peer is in quorum
@@ -98,10 +106,13 @@ def add_routes(app):
                                                            "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
                 e)
 
-        app.logger.info("Adding {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
-        # store neighbour info in app
-        app.config[QUORUMS][quorum_id] = neighbours
-        return ROUTE_EXECUTED_CORRECTLY
+        app.logger.info("localhost:" + str(port) + " adding quorum ID {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
+
+        js = json.loads(json.dumps({
+            "NEIGHBORS": neighbours
+        }))
+
+        return js
 
     # remove neighbor from API after it leaves
     @app.route('/remove/<quorum_id>', methods=['POST'])
@@ -117,7 +128,7 @@ def add_routes(app):
                 return ROUTE_EXECUTION_FAILED.format(msg="Peer not in committee {} can not leave PBFT"
                                                      .format('quorum_id'))
         except AttributeError as e:
-            app.logger.error("Peer not started request /start/<quorum_id_a>/<quorum_id_b> first")
+            app.logger.error("Peer not started request, but is trying to be removed. Run /start/<quorum_id_a>/<quorum_id_b> first")
             app.logger.error(e)
             return ROUTE_EXECUTION_FAILED.format(msg="") + "Non-started peer attempted to cooperatively leave." \
                                                            "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(

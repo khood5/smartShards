@@ -35,13 +35,13 @@ DEFAULT_PORT = 5000
 
 class SmartShardPeer:
 
-    def __init__(self, peer=None, port=DEFAULT_PORT):
+    def __init__(self, inter=None, port=DEFAULT_PORT):
         self.port = port
-        self.peer = peer
+        self.inter = inter
         self.app = None
 
     def __del__(self):
-        del self.peer
+        del self.inter
         self.app.terminate()
         self.app.join()  # wait for app kill to fully complete
         del self.app
@@ -53,15 +53,16 @@ class SmartShardPeer:
             smart_shard_peer_log.error('start called with no PORT')
         if self.app is not None:
             smart_shard_peer_log.error('app on {} is already running'.format(self.port))
+
         self.app = mp.Process()
-        self.app.api = create_app(self.peer)
+        self.app.api = create_app(self.inter)
         temp = self.app.api
         self.app = mp.Process(target=self.app.api.run, kwargs=({'port': self.port}))
         self.app.api = temp
-        self.app.daemon = True  # run the api as daemon so it terminates with the peer process process
 
+        self.app.daemon = True  # run the api as daemon so it terminates with the peer process process
         self.app.start()
-        
+
 
     def pid(self):
         return self.app.pid
@@ -76,105 +77,21 @@ class SmartShardPeer:
         return self.port
 
     # Leave the network cooperatively
-    def leave(self, notify_peers):
-        quorums = [self.committee_id_a(), self.committee_id_b()]
-        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorums[0]) + ", " + str(quorums[1]))
-
-        new_network = {}
-        for port in list(notify_peers.keys()):
-            if self.port != port:
-                new_network[port] = notify_peers[port]
-
-        delete_committee = str(self.committee_id_b())
-
-        gap_closing_peer = None
+    def leave(self):
+        quorums = self.app.api.config[QUORUMS]
+        quorum_ids = list(quorums.keys())
+        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
 
         # Notify neighbors
-        for port in list(new_network.keys()):
-            inter = new_network[port].app.api.config[PBFT_INSTANCES]
-            if not inter.in_committee(delete_committee):
-                continue
-            id_a = str(inter.committee_id_a)
-            id_b = str(inter.committee_id_b)
-
-            if id_a != "" and id_b != "":
-                # Intersection in two quorums - remove the sawtooth container in the leaving intersection
-
-                # Remove committee membership
-                url = "http://localhost:{port}/remove/{quorum}".format(port=port, quorum=delete_committee)
-                requests.post(url, json={'NODE': str(delete_committee)})
-
-                corresponding_id = None
-                if id_a == delete_committee:
-                    corresponding_id = id_a
-                    new_network[port].app.api.config[PBFT_INSTANCES].committee_id_a = ""
-                    #print("Removed committee A " + str(corresponding_id) + " from " + str(port))
-                elif id_b == delete_committee:
-                    corresponding_id = id_b
-                    new_network[port].app.api.config[PBFT_INSTANCES].committee_id_b = ""
-                    #print("Removed committee B " + str(corresponding_id) + " from " + str(port))
-
-                # Search neighbors for another peer only participating in 1 quorum
-                # If found, make a new quorum with them
-                for search_port in list(new_network.keys()):
-                    if search_port != port:
-                        search_inter = new_network[search_port].app.api.config[PBFT_INSTANCES]
-                        search_committee_a = search_inter.committee_id_a
-                        search_committee_b = search_inter.committee_id_b
-                        if search_committee_a != "" and search_committee_b == "":
-                            if gap_closing_peer is None:
-                                gap_closing_peer = new_network[port]
-                                #print("Peer on port " + str(search_port) + " closing gap.")
-
-                                new_sawtooth = SawtoothContainer()
-                                new_inter = Intersection(inter._Intersection__instance_a, new_sawtooth, id_a,
-                                                         corresponding_id)
-
-                                ips_a = []
-                                vals_a = []
-                                users_a = []
-
-                                ips_b = []
-                                vals_b = []
-                                users_b = []
-
-                                new_sawtooth = SawtoothContainer()
-                                new_inter = Intersection(inter._Intersection__instance_a, new_sawtooth, id_a,
-                                                         corresponding_id)
-
-                                for port in list(new_network.keys()):
-                                    replace_inter = new_network[port].app.api.config[PBFT_INSTANCES]
-                                    ips_a.append(replace_inter._Intersection__instance_a.ip())
-                                    vals_a.append(replace_inter._Intersection__instance_a.val_key())
-                                    users_a.append(replace_inter._Intersection__instance_a.user_key())
-
-                                    ips_b.append(replace_inter._Intersection__instance_b.ip())
-                                    vals_b.append(replace_inter._Intersection__instance_b.val_key())
-                                    users_b.append(replace_inter._Intersection__instance_b.user_key())
-
-                                new_sawtooth.join_sawtooth(ips_b)
-
-                                new_inter.peer_join(id_a, ips_a)
-                                new_inter.update_committee(vals_a, users_a, True)
-
-                                new_inter.peer_join(corresponding_id, ips_b)
-                                new_inter.update_committee(vals_b, users_b, True)
-
-                                # del inter._Intersection__instance_b
-                                inter = new_inter
-                            else:
-                                print("") # do stuff
-
-            # Other peer will no longer participate in any quorums, they should terminate
-            elif id_a != "" and id_b == "":
-                new_network[port].leave(new_network)
-            elif id_a == "" and id_b != "":
-                new_network[port].leave(new_network)
+        for committee_id in quorums:
+            # Have self removed from neighbors' neighbor list
+            for neighbor in quorums[committee_id]:
+                neighbor_ip = neighbor[API_IP]
+                neighbor_port = neighbor[PORT]
+                neighbor_quorum = neighbor[QUORUM_ID]
+                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum, address=neighbor_ip, port=neighbor_port)
+                requests.post(url, json={})
 
         # Remove self from network
         self.app.terminate()
         self.app.join()
-        del notify_peers[self.port]
-
-        # Return the new state of the network
-        return new_network

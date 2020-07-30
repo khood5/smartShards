@@ -5,7 +5,7 @@ from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
-from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS, PBFT_INSTANCES
+from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS, PBFT_INSTANCES, QUORUM_ID, PORT
 from src.structures import Transaction
 from src.util import stop_all_containers, make_intersecting_committees_on_host
 from src.api.api_util import get_plain_text
@@ -125,9 +125,9 @@ class TestSmartShard(unittest.TestCase):
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
-        num_committees = 6
+        num_committees = 5
         # set up initial network
-        peers = make_intersecting_committees_on_host(num_committees, 1)
+        peers = make_intersecting_committees_on_host(num_committees, 1, True)
 
         # pick a random peer to leave
         random.seed(time.gmtime())
@@ -150,22 +150,23 @@ class TestSmartShard(unittest.TestCase):
 
         quorum_exists = False
 
-        # Ensure quorum exists in some other peer prior to leaving
-        for port in list(peers.keys()):
-            for quorum_id in rand_peer_quorums:
-                print("quorums found:")
-                print(peers[port].app.api.config[QUORUMS])
-                for found_quorum_id in peers[port].app.api.config[QUORUMS]:
-                    print("searching for " + str(quorum_id))
-                    if str(quorum_id) == str(found_quorum_id):
-                        quorum_exists = True
-                        break
+        # Make sure all neighbors know about the leaving peer before they leave
+        ids_found = 0
+        for search_committee in rand_peer_quorums:
+            for port in list(peers.keys()):
+                for quorum_id in peers[port].app.api.config[QUORUMS]:
+                    for neighbor in peers[port].app.api.config[QUORUMS][quorum_id]:
+                        if neighbor[QUORUM_ID] == search_committee:
+                            ids_found += 1
+                            if ids_found == 2:
+                                quorum_exists = True
+                                break
 
-        # self.assertEqual(True, quorum_exists) # Needs fix, seems no peers have any quorums at all at the beginning
+        self.assertEqual(True, quorum_exists) # Needs fix, seems no peers have any quorums at all at the beginning
 
-        peers = rand_peer.leave(peers)
-        print(str(rand_peer_pid) + " has left the network, waiting 5 seconds to ensure its absence.")
-        time.sleep(5)
+        rand_peer.leave()
+        print("PID " + str(rand_peer_pid) + " on port:" + str(rand_port) + " has left the network, waiting 2 seconds to ensure its absence.")
+        time.sleep(2)
 
         # Random peer should no longer be running
         running_processes_after_leave = []
@@ -175,11 +176,16 @@ class TestSmartShard(unittest.TestCase):
         # Leaving API process has been terminated
         self.assertNotIn(rand_peer_pid, running_processes_after_leave)
 
-        # Leaving API process has been removed from peers dict
-        self.assertNotIn(rand_port, list(peers.keys()))
+        # Terminated port is no longer present
+        port_found = False
+        for search_committee in rand_peer_quorums:
+            for port in list(peers.keys()):
+                for quorum_id in peers[port].app.api.config[QUORUMS]:
+                    for neighbor in peers[port].app.api.config[QUORUMS][quorum_id]:
+                        if neighbor[PORT] == rand_port:
+                            port_found = True
+                            break
 
-        # Relevant quorums removed from all neighbors
-        for port in list(peers.keys()):
-            for quorum_id in rand_peer_quorums:
-                self.assertNotIn(str(quorum_id), peers[port].app.api.config[QUORUMS])
+        # Leaving API process has been removed from peers dict
+        self.assertEqual(False, port_found)
 
