@@ -23,20 +23,20 @@ def intersection_log_to(path, console_logging=False):
 class Intersection:
 
     def __init__(self, sawtooth_container_a, sawtooth_container_b, Aid, Bid):
-        self.__instance_a = sawtooth_container_a
-        self.__instance_b = sawtooth_container_b
+        self.instance_a = sawtooth_container_a
+        self.instance_b = sawtooth_container_b
         self.committee_id_a = str(Aid) if Aid is not None else None
         self.committee_id_b = str(Bid) if Bid is not None else None
 
     def __del__(self):
-        del self.__instance_a
-        del self.__instance_b
+        del self.instance_a
+        del self.instance_b
 
     def make_genesis(self, committee_id, val_keys, user_keys):
         if str(committee_id) == self.committee_id_a:
-            self.__instance_a.make_genesis(val_keys, user_keys)
+            self.instance_a.make_genesis(val_keys, user_keys)
         elif str(committee_id) == self.committee_id_b:
-            self.__instance_b.make_genesis(val_keys, user_keys)
+            self.instance_b.make_genesis(val_keys, user_keys)
         else:
             intersection_logger.error('PEER: make_genesis for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -44,15 +44,15 @@ class Intersection:
                                         unknown=committee_id))
 
     def start_sawtooth(self, committee_a_ips, committee_b_ips):
-        self.__instance_a.join_sawtooth(committee_a_ips)
-        self.__instance_b.join_sawtooth(committee_b_ips)
+        self.instance_a.join_sawtooth(committee_a_ips)
+        self.instance_b.join_sawtooth(committee_b_ips)
 
     def submit(self, tx):
         if str(tx.quorum_id) == self.committee_id_a:
-            self.__instance_a.submit_tx(tx.key, tx.value)
+            self.instance_a.submit_tx(tx.key, tx.value)
 
         elif str(tx.quorum_id) == self.committee_id_b:
-            self.__instance_b.submit_tx(tx.key, tx.value)
+            self.instance_b.submit_tx(tx.key, tx.value)
         else:
             intersection_logger.error('PEER: tx submitted for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -61,10 +61,10 @@ class Intersection:
 
     def get_tx(self, tx):
         if str(tx.quorum_id) == self.committee_id_a:
-            return self.__instance_a.get_tx(tx.key)
+            return self.instance_a.get_tx(tx.key)
 
         elif str(tx.quorum_id) == self.committee_id_b:
-            return self.__instance_b.get_tx(tx.key)
+            return self.instance_b.get_tx(tx.key)
         else:
             intersection_logger.error('PEER: tx submitted for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -74,9 +74,9 @@ class Intersection:
 
     def ip(self, quorum_id):
         if str(quorum_id) == self.committee_id_a:
-            return self.__instance_a.ip()
+            return self.instance_a.ip()
         elif str(quorum_id) == self.committee_id_b:
-            return self.__instance_b.ip()
+            return self.instance_b.ip()
         else:
             intersection_logger.error('PEER: ip request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -85,9 +85,9 @@ class Intersection:
 
     def user_key(self, quorum_id):
         if str(quorum_id) == self.committee_id_a:
-            return self.__instance_a.user_key()
+            return self.instance_a.user_key()
         elif str(quorum_id) == self.committee_id_b:
-            return self.__instance_b.user_key()
+            return self.instance_b.user_key()
         else:
             intersection_logger.error('PEER: user key request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -97,9 +97,9 @@ class Intersection:
 
     def val_key(self, quorum_id):
         if str(quorum_id) == self.committee_id_a:
-            return self.__instance_a.val_key()
+            return self.instance_a.val_key()
         elif str(quorum_id) == self.committee_id_b:
-            return self.__instance_b.val_key()
+            return self.instance_b.val_key()
         else:
             intersection_logger.error('PEER: validator key request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -109,9 +109,9 @@ class Intersection:
 
     def blocks(self, quorum_id):
         if str(quorum_id) == self.committee_id_a:
-            return self.__instance_a.blocks()['data']
+            return self.instance_a.blocks()['data']
         elif str(quorum_id) == self.committee_id_b:
-            return self.__instance_b.blocks()['data']
+            return self.instance_b.blocks()['data']
         else:
             intersection_logger.error('PEER: blocks request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -121,9 +121,9 @@ class Intersection:
 
     def sawtooth_api(self, quorum_id, request):
         if str(quorum_id) == self.committee_id_a:
-            return self.__instance_a.sawtooth_api(request)
+            return self.instance_a.sawtooth_api(request)
         elif str(quorum_id) == self.committee_id_b:
-            return self.__instance_b.sawtooth_api(request)
+            return self.instance_b.sawtooth_api(request)
         else:
             intersection_logger.error('PEER: sawtooth api request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
@@ -133,19 +133,19 @@ class Intersection:
 
     def peer_join(self, committee_id, committee_ips):
         if str(committee_id) == self.committee_id_a:
-            self.__instance_a.join_sawtooth(committee_ips)
+            self.instance_a.join_sawtooth(committee_ips)
         elif str(committee_id) == self.committee_id_b:
-            self.__instance_b.join_sawtooth(committee_ips)
+            self.instance_b.join_sawtooth(committee_ips)
         else:
             intersection_logger.error('PEER: peer tried to start in {q}, but peer is not in {q}. Peer in {a}, {b}'
                                       .format(q=committee_id, a=self.committee_id_a, b=self.committee_id_b))
 
-    def update_committee(self, committee_id, val_keys, user_keys):
+    def update_committee(self, committee_id, val_keys):
         # Needed after a peer is deleted and when a peer joins
         if str(committee_id) == self.committee_id_a:
-            self.__instance_a.update_committee(val_keys, user_keys)
+            self.instance_a.update_committee(val_keys)
         else:
-            self.__instance_b.update_committee(val_keys, user_keys)
+            self.instance_b.update_committee(val_keys)
 
     def in_committee(self, committee_id):
         if str(committee_id) == self.committee_id_a or str(committee_id) == self.committee_id_b:
@@ -153,6 +153,6 @@ class Intersection:
         return False
 
     def attached_network(self):
-        if self.__instance_a.attached_network() != self.__instance_b.attached_network():
+        if self.instance_a.attached_network() != self.instance_b.attached_network():
             intersection_logger.warning('PEER: containers attached to different networks, only a is given')
-        return self.__instance_a.attached_network()
+        return self.instance_a.attached_network()

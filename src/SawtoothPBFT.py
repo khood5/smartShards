@@ -17,16 +17,19 @@ sawtooth_logger = logging.getLogger(__name__)
 # name of the docker image to run
 DOCKER_IMAGE = "sawtooth:final"
 DEFAULT_DOCKER_NETWORK = 'bridge'
-
+IDEAL_VIEW_CHANGE_MILSEC = 30000  # 30 sec
+COMMIT_VIEW_CHANGE_MILSEC = 15000  # 15 sec
 # key locations in container
 USER_KEY = {"priv": "/root/.sawtooth/keys/root.priv", "pub": "/root/.sawtooth/keys/root.pub"}
 VALIDATOR_KEY = {"priv": "/etc/sawtooth/keys/validator.priv", "pub": "/etc/sawtooth/keys/validator.pub"}
-
+ADMIN_KEY = {"admin": "/admin.priv"}
 # these commands are used to create the genesis block for a PBFT committee, they are listed in the order they should be
 # run, they only need to be executed once on one peer
 # the sawset genesis command need to have the user keys added to the end in the format '["user_key", "user_key"]'
 # some commands (consensus and sawtooth config) need to have the list of peers (by there validator keys) appended to
 # the end in the format '["val_key", "val_key", "val_key"]' including the peer that is creating the genesis block
+# sawtooth.consensus.pbft.idle_timeout sets ideal needed to do a view change (set at 2.5min)
+# sawtooth.consensus.pbft.commit_timeout sets max time to wait for commit msg if longer view change (set at 1.25min)
 SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o config-genesis.batch -A \'{keys}\'",
                              "consensus_config": "sawset proposal create --key {user_priv} \
                                                                       -o config-consensus.batch \
@@ -37,8 +40,8 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o pbft-settings.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
-                                                                      sawtooth.consensus.pbft.idle_timeout=300000 \
-                                                                      sawtooth.consensus.pbft.commit_timeout=150000 \
+                                                                      sawtooth.consensus.pbft.idle_timeout={ideal} \
+                                                                      sawtooth.consensus.pbft.commit_timeout={commit} \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\'",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
@@ -59,7 +62,10 @@ SAWTOOTH_UPDATE_PERMISSION = "sawset proposal create --key {user_priv} \
                                     sawtooth.settings.vote.authorized_keys=\'{keys}\'"
 
 # the amount of time (sec) to wait for peers to update membership after adding/removing a peer
-UPDATE_TIMEOUT = 60
+UPDATE_TIMEOUT = 45
+
+# amount of time (sec) to wait for blockchain catch up
+BLOCKCHAIN_CATCHUP = 15
 
 # these commands start PBFT they need to run on every peer in a committee, they are listed in the order they should be
 # run
@@ -67,7 +73,7 @@ UPDATE_TIMEOUT = 60
 # --peers tcp://172.17.0.3:8800,tcp://172.17.0.4:8800, ...
 # this dose not include the peer that the commands are being executed on
 # all commands should end with a &
-SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator \
+SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator  \
                             --bind component:tcp://127.0.0.1:4004 \
                             --bind network:tcp://{ip}:8800 \
                             --bind consensus:tcp://{ip}:5050 \
@@ -91,13 +97,15 @@ def sawtooth_container_log_to(path, console_logging=False):
     sawtooth_logger.addHandler(handler)
 
 
-def append_keys(keys, command):
+def append_keys(keys, command, admin_key=ADMIN_KEY["admin"]):
     keys = '{}'.format(str(keys).replace('\'', '\"'))  # converts list to string in form '["keyVal","keyVal" ...]'
-    return command.format(keys=keys, user_priv=USER_KEY["priv"])
+    return command.format(keys=keys, user_priv=admin_key, ideal=IDEAL_VIEW_CHANGE_MILSEC,
+                          commit=COMMIT_VIEW_CHANGE_MILSEC)
 
 
 class SawtoothContainer:
     __client = docker.from_env()
+    __admin_key = None
 
     # starts a sawtooth container and generates root and validator keys
     # does not start PBFT
@@ -117,6 +125,7 @@ class SawtoothContainer:
 
     # makes a new genesis block, runs on one and only one peer in a committee
     def make_genesis(self, validator_keys: list, user_keys: list):
+        self.set_admin_key(self.run_command('cat {user_pub}'.format(user_pub=USER_KEY["priv"])))
         genesis_command = append_keys(user_keys, SAWTOOTH_GENESIS_COMMANDS["genesis"])
         self.run_command(genesis_command)
 
@@ -137,7 +146,7 @@ class SawtoothContainer:
                 ips.append(ip)
         for i in range(len(ips)):
             ips[i] = "tcp://{}:8800".format(ips[i])
-
+        self.set_admin_key()
         self.run_service(SAWTOOTH_START_COMMANDS["validator"].format(ip=self.ip(), peers=', '.join(ips)))
         self.run_service(SAWTOOTH_START_COMMANDS["api"])
         self.run_service(SAWTOOTH_START_COMMANDS["settings_processor"])
@@ -149,44 +158,45 @@ class SawtoothContainer:
         assert (len(ips) >= 4)  # any less and joining is not possible
         self.start_sawtooth(ips)
 
-    # this re-config the committee so that all peers in keys can A vote and B edit settings
-    def update_committee(self, validator_keys: list, user_keys: list):
+    # this re-config the committee so that all peers in keys can vote
+    def update_committee(self, validator_keys: list):
         if len(validator_keys) < 4:
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
-        if len(validator_keys) != len(user_keys):
+        if len(validator_keys) != len(validator_keys):
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP VALIDATOR/USER KEY MISMATCH ------!!!!!!")
             sawtooth_logger.error("!!!!!!------        PEER UPDATING MEMBERSHIP UPDATE SKIPPED       ------!!!!!!")
+            return
+        if self.__admin_key is None:
+            logging.error("{ip}: can not issue update missing admin key".format(ip=self.ip()))
             return
 
         logging.info("{ip}: submitted membership update".format(ip=self.ip()))
         update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
-        self.__update(update_membership)
+        if self.__update_on_chain_settings(update_membership):
+            logging.info("{}: update complete".format(self.ip()))
+        else:
+            logging.error("{}: UPDATE FAILED".format(self.ip()))
 
-        time.sleep(1)
-
-        logging.info("{ip}: submitted permission update".format(ip=self.ip()))
-        keys = '{}'.format(user_keys)
-        keys = keys.strip("[]").replace("\'", "")
-        update_permissions = SAWTOOTH_UPDATE_PERMISSION.format(user_priv=USER_KEY["priv"], keys=keys)
-        self.__update(update_permissions)
-
-        logging.info("{}: update complete".format(self.ip()))
-
-    def __update(self, command: str):
+    def __update_on_chain_settings(self, command: str):
         current_chain_size = len(self.blocks()['data'])
+        logging.info("{ip}: waiting for chain to increase from {b}".format(ip=self.ip(), b=current_chain_size))
         self.run_command(command)
         # wait for update
         start = time.time()
+        retry_attempted = False
         while len(self.blocks()['data']) <= current_chain_size:
+            logging.info("{ip}: current length {b}".format(ip=self.ip(), b=len(self.blocks()['data'])))
             end = time.time()
-            if end - start > UPDATE_TIMEOUT * 0.75:
+            if end - start > UPDATE_TIMEOUT * 0.75 and retry_attempted is False:
                 sawtooth_logger.critical("------ UPDATE RETRY ------")
                 self.run_command(command)
+                retry_attempted = True
                 time.sleep(1)
             if end - start > UPDATE_TIMEOUT:
                 sawtooth_logger.critical("------ UPDATE TIMEOUT ------")
-                break
+                return False
             time.sleep(1)
+        return True
 
     def submit_tx(self, key: str, val: str):
         self.run_command('intkey set {key} {val}'.format(key=key, val=val))
@@ -201,6 +211,18 @@ class SawtoothContainer:
 
     def user_key(self):
         return self.__user_key
+
+    def admin_key(self):
+        return self.__admin_key
+
+    def container_id(self):
+        return self.__container.id
+
+    def set_admin_key(self, key=None):
+        if SawtoothContainer.__admin_key is None:
+            SawtoothContainer.__admin_key = key
+        self.run_command('/bin/sh -c "echo {key} > {file}"'.format(key=SawtoothContainer.__admin_key,
+                                                                   file=ADMIN_KEY['admin']))
 
     def id(self):
         if self.__container is None:
@@ -251,7 +273,8 @@ class SawtoothContainer:
         result = self.__container.exec_run(command).output.decode('utf-8').strip()
         sawtooth_logger.debug("{ip}:api result: {result}".format(ip=self.ip(), result=result))
         if result != "curl: (7) Failed to connect to localhost port 8008: Connection timed out" and \
-                result != "curl: (56) Recv failure: Connection timed out":
+                result != "curl: (56) Recv failure: Connection timed out" and \
+                result != "curl: (7) Failed to connect to localhost port 8008: Connection refused":
             return json.loads(result)
         else:
             sawtooth_logger.warning("{ip}: api failed to complete request {t}:{r}".format(ip=self.ip(),

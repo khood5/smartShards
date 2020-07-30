@@ -13,6 +13,8 @@ import json
 import time
 from contextlib import closing
 
+UPDATE_CONFIRMATION = 60
+
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
     level=logging.INFO,
@@ -49,8 +51,37 @@ def get_container_ids():
     return ids
 
 
+def check_for_confirmation(peers, number_of_tx, tx_key="NO_KEY_GIVEN", timeout=UPDATE_CONFIRMATION):
+    done = False
+    start = time.time()
+    while not done:
+        time.sleep(0.5)
+        done = True
+
+        for p in peers:
+            peers_blockchain = len(p.blocks()['data'])
+            if number_of_tx > peers_blockchain:
+                done = False
+                break
+        if time.time() - start > timeout:
+            for p in peers:
+                peers_blockchain = len(p.blocks()['data'])
+                result = p.get_tx(tx_key)
+                logging.critical("{ip}: TIMEOUT unable to confirm tx {key}:{r}".format(ip=p.ip(), key=tx_key,
+                                                                                       r=result))
+                logging.critical("{ip}: TIMEOUT blockchain length:{l} waiting for {nt}".format(ip=p.ip(),
+                                                                                               l=peers_blockchain,
+                                                                                               nt=number_of_tx))
+            return False
+    return True
+
+
 # makes a test committee of user defined size
 def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
+    if size < 7:
+        logging.warning("COMMITTEE UNSTABLE: making committees of less then 7 members can lead to issues with adding "
+                        "and removing. ")
+
     peers = [SawtoothContainer(network) for _ in range(size)]
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
 
@@ -59,16 +90,18 @@ def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
         p.join_sawtooth(committee_ips)
 
     # if the there are a lot of containers running wait longer for process to start
-    time.sleep(1 * size)
+    time.sleep(5 * size)
 
     done = False
     while not done:
         done = True
         for p in peers:
-            if len(p.blocks()['data']) > 1:
-                logging.info("Peer {ip} not up to date, expected 3 blocks got {b}".format(ip=p.ip(),
-                                                                                          b=p.blocks()['data']))
+            if len(p.blocks()['data']) < 1:
+                logging.info("Peer {ip} could not get genesis block\n"
+                             "     blocks:{b}".format(ip=p.ip(), b=p.blocks()['data']))
                 done = False
+                time.sleep(0.5)
+                break
 
     return peers
 
