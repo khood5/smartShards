@@ -152,8 +152,7 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         neighbors_send = get_neighbors(quorum_id, other_peers)
                 
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send,
-            PORT: port,
+            NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
@@ -162,8 +161,7 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
         neighbors_send = get_neighbors(quorum_id, other_peers)
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send,
-            PORT: port
+            NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
