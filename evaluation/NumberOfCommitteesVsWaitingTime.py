@@ -114,7 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('-min', type=int,
                         help='Starting number of committees. Default {}'.format(MIN))
     parser.add_argument('-max', type=int,
-                        help='Max committee size. Default {}'.format(MAX))
+                        help='Max number committee. Default {}'.format(MAX))
     parser.add_argument('-i', type=int,
                         help='Intersection between committees. Default {}'.format(INTERSECTION))
     parser.add_argument('-e', type=int,
