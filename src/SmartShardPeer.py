@@ -63,7 +63,6 @@ class SmartShardPeer:
         self.app.daemon = True  # run the api as daemon so it terminates with the peer process process
         self.app.start()
 
-
     def pid(self):
         return self.app.pid
 
@@ -80,7 +79,8 @@ class SmartShardPeer:
     def leave(self):
         quorums = self.app.api.config[QUORUMS]
         quorum_ids = list(quorums.keys())
-        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
+        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(
+            quorum_ids[0]) + ", " + str(quorum_ids[1]))
 
         # Notify neighbors
         for committee_id in quorums:
@@ -89,7 +89,8 @@ class SmartShardPeer:
                 neighbor_ip = neighbor[API_IP]
                 neighbor_port = neighbor[PORT]
                 neighbor_quorum = neighbor[QUORUM_ID]
-                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum, address=neighbor_ip, port=neighbor_port)
+                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum,
+                                                                          address=neighbor_ip, port=neighbor_port)
                 requests.post(url, json={})
 
         # Remove self from network
