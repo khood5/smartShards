@@ -38,11 +38,12 @@ def get_plain_text(response):
 
 # this function is made to work with a flask app and cannot be used with out passing one to it as app
 def forward(app, url_subdirectory: str, quorum_id: str, json_data):
-    for this_quorum in app.config[QUORUMS]:
-        for intersecting_quorum in app.config[QUORUMS][this_quorum]:
-            if intersecting_quorum[QUORUM_ID] == quorum_id:
+    for check_quorum_id in list(app.config[QUORUMS].keys()):
+        for intersecting_quorum in app.config[QUORUMS][check_quorum_id]:
+            intersecting_quorum_id = intersecting_quorum[QUORUM_ID]
+            if intersecting_quorum_id == quorum_id:
                 url = URL_REQUEST.format(hostname=intersecting_quorum[API_IP],
-                                         port=intersecting_quorum[PORT])
+                                        port=intersecting_quorum[PORT])
                 url += url_subdirectory
                 app.logger.info("request in quorum this peer is not a member of forwarding to "
                                 "{}".format(url))

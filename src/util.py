@@ -1,5 +1,7 @@
+import multiprocessing
+
 import docker as docker_api
-from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
@@ -171,7 +173,7 @@ def find_free_port():
 
 # starts a set of peers on the same host (differentiated by port number)
 # returns a dict {portNumber : SmartShardPeer}
-def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
+def make_intersecting_committees_on_host(number_of_committees: int, intersections: int, join_after = False):
     inter = make_intersecting_committees(number_of_committees, intersections)
     peers = {}
     for i in inter:
@@ -185,17 +187,23 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         for p in peers:
             if peers[p].port != port:
                 other_peers[p] = peers[p]
+
+        neighbors_send = get_neighbors(quorum_id, other_peers)
+                
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
+            NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        requests.post(url, json=add_json)
+        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
+        peers[port].app.api.config[QUORUMS][quorum_id] = response
 
         quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
+        neighbors_send = get_neighbors(quorum_id, other_peers)
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
+            NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        requests.post(url, json=add_json)
+        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
+        peers[port].app.api.config[QUORUMS][quorum_id] = response
 
     return peers
