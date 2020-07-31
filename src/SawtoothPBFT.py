@@ -28,8 +28,6 @@ ADMIN_KEY = {"admin": "/admin.priv"}
 # the sawset genesis command need to have the user keys added to the end in the format '["user_key", "user_key"]'
 # some commands (consensus and sawtooth config) need to have the list of peers (by there validator keys) appended to
 # the end in the format '["val_key", "val_key", "val_key"]' including the peer that is creating the genesis block
-# sawtooth.consensus.pbft.idle_timeout sets ideal needed to do a view change (set at 2.5min)
-# sawtooth.consensus.pbft.commit_timeout sets max time to wait for commit msg if longer view change (set at 1.25min)
 SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o config-genesis.batch -A \'{keys}\'",
                              "consensus_config": "sawset proposal create --key {user_priv} \
                                                                       -o config-consensus.batch \
