@@ -1,8 +1,4 @@
 import json
-import multiprocessing
-from multiprocessing import Pipe
-
-import requests
 
 from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID
 from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USER_KEY, DOCKER_IP
@@ -135,7 +131,8 @@ def add_routes(app):
         app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
         # remove neighbour info from app
 
-        app.config[QUORUMS][quorum_id] = None
+        #app.config[QUORUMS][quorum_id] = None
+        del app.config[QUORUMS][quorum_id]
 
         return ROUTE_EXECUTED_CORRECTLY
 
