@@ -1,7 +1,6 @@
 import requests
 
 from src.Intersection import Intersection
-from src.SawtoothPBFT import SawtoothContainer
 from src.api import create_app
 from src.api.api_util import get_plain_text
 from src.api.constants import PBFT_INSTANCES, QUORUMS, NEIGHBOURS, API_IP, PORT, DOCKER_IP, QUORUM_ID
@@ -80,9 +79,33 @@ class SmartShardPeer:
     def leave(self):
         quorums = self.app.api.config[QUORUMS]
         quorum_ids = list(quorums.keys())
-        print("API peer on port :" + str(self.port) + " cooperatively leaving the network, member of quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
+        logging.info("API peer on port :" + str(self.port) + " cooperatively leaving quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
 
-        # Notify neighbors
+        inter = self.app.api.config[PBFT_INSTANCES]
+        instance_a = inter.instance_a
+        instance_b = inter.instance_b
+        id_a = inter.committee_id_a
+        id_b = inter.committee_id_b
+        val_key_a = inter.val_key(id_a)
+        val_key_b = inter.val_key(id_b)
+
+        a_leave_success = instance_a.leave_network(val_key_a)
+        b_leave_success = instance_b.leave_network(val_key_b)
+
+        if a_leave_success and b_leave_success:
+            # Remove self from network
+            self.app.terminate()
+            self.app.join()
+        else:
+            if not a_leave_success:
+                logging.error(("{}: SmartShard API on " + instance_a.ip() + " was unable to cooperatively leave committee " + str(id_a) + " - rejoining.").format(instance_a.ip()))
+                instance_a.rejoin_network()
+            if not b_leave_success:
+                logging.error(("{}: SmartShard API on " + instance_b.ip() + " was unable to cooperatively leave committee " + str(id_b) + " - rejoining.").format(instance_b.ip()))
+                instance_b.rejoin_network()
+            return False
+
+        # Notify neighbor SmartShardPeers to remove this neighbor
         for committee_id in quorums:
             # Have self removed from neighbors' neighbor list
             for neighbor in quorums[committee_id]:
@@ -91,7 +114,6 @@ class SmartShardPeer:
                 neighbor_quorum = neighbor[QUORUM_ID]
                 url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum, address=neighbor_ip, port=neighbor_port)
                 requests.post(url, json={})
-
-        # Remove self from network
-        self.app.terminate()
-        self.app.join()
+        logging.info(("PID " + str(self.pid()) + " on port:" + str(self.port) + " has cooperatively left."))
+        return True
+                

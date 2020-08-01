@@ -15,7 +15,7 @@ import psutil
 import unittest
 import time
 import gc
-
+import logging
 import random
 
 
@@ -162,11 +162,15 @@ class TestSmartShard(unittest.TestCase):
                                 quorum_exists = True
                                 break
 
-        self.assertEqual(True, quorum_exists) # Needs fix, seems no peers have any quorums at all at the beginning
+        self.assertEqual(True, quorum_exists)
 
-        rand_peer.leave()
-        print("PID " + str(rand_peer_pid) + " on port:" + str(rand_port) + " has left the network, waiting 2 seconds to ensure its absence.")
-        time.sleep(2)
+        leave_success = rand_peer.leave()
+        if leave_success:
+            # Delay to allow other peers to catch up
+            time.sleep(2)
+        else:
+            # Peer failed to cooperatively leave
+            return
 
         # Random peer should no longer be running
         running_processes_after_leave = []
@@ -178,6 +182,7 @@ class TestSmartShard(unittest.TestCase):
 
         # Terminated port is no longer present
         port_found = False
+        peer_found = False
         for search_committee in rand_peer_quorums:
             for port in list(peers.keys()):
                 for quorum_id in peers[port].app.api.config[QUORUMS]:
@@ -185,7 +190,10 @@ class TestSmartShard(unittest.TestCase):
                         if neighbor[PORT] == rand_port:
                             port_found = True
                             break
-
+                        neighbor_inter = peers[port].app.api.config[PBFT_INSTANCES]
+                        neighbor_instance_a = neighbor_inter.instance_a
+                        neighbor_instance_b = neighbor_inter.instance_b
+                        
         # Leaving API process has been removed from peers dict
         self.assertEqual(False, port_found)
 

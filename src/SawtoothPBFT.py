@@ -49,6 +49,13 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
 SAWTOOTH_UPDATE_PEER_COMMAND = "sawset proposal create \
                              --key {user_priv} sawtooth.consensus.pbft.members=\'{keys}\'"
 
+# Lists all peer IPs in a consensus committee
+SAWTOOTH_GET_IPS_COMMAND = "sawtooth peer list -F json"
+
+# Lists all peer IP in a consensus committee
+SAWTOOTH_GET_PEERS_COMMAND = "sawtooth settings list --filter sawtooth.consensus.pbft.members --format json"
+
+
 # this command is used to give peers permission to add/remove other peers from the committee
 # it must be executed on one current member of the committee that has permission
 # keys are added in the format 'user_key, user_key, user_key' NOTE: this is not the same as when they are listed for the
@@ -147,12 +154,66 @@ class SawtoothContainer:
         assert (len(ips) >= 4)  # any less and joining is not possible
         self.start_sawtooth(ips)
 
-    # this re-config the committee so that all peers in keys can A vote and B edit settings
-    def update_committee(self, validator_keys: list, user_keys: list, removing=None):
-        removing = removing or True
+    # this re-config the committee so that all peers in keys can vote
+    def update_committee(self, validator_keys: list, stop_on_failure=False):
         if len(validator_keys) < 4:
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
+            if stop_on_failure:
+                return False
+        if len(validator_keys) != len(validator_keys):
+            sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP VALIDATOR/USER KEY MISMATCH ------!!!!!!")
+            sawtooth_logger.error("!!!!!!------        PEER UPDATING MEMBERSHIP UPDATE SKIPPED       ------!!!!!!")
+            return False
+        if self.__admin_key is None:
+            logging.error("{ip}: can not issue update missing admin key".format(ip=self.ip()))
+            return False
 
+        logging.info("{ip}: submitted membership update".format(ip=self.ip()))
+        update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
+        if self.__update_on_chain_settings(update_membership):
+            logging.info("{}: update complete".format(self.ip()))
+            return True
+        else:
+            logging.error("{}: UPDATE FAILED".format(self.ip()))
+        return False
+
+    def get_ips(self):
+        result = (json.dumps(json.loads(self.run_command(SAWTOOTH_GET_IPS_COMMAND))).replace('\\', "")).replace("tcp://", "")
+        list_start = result.find("[")
+        ips_str = (result[list_start:])
+
+        ips = json.loads(ips_str)
+        return ips
+
+    # Gets a table of all other peers
+    def get_peers(self):
+        result = json.dumps(json.loads(self.run_command(SAWTOOTH_GET_PEERS_COMMAND))["settings"]["sawtooth.consensus.pbft.members"]).replace('\\', "")
+        list_start = result.find("[")
+        peers_str = (result[list_start:])[:-1]
+
+        peers = json.loads(peers_str)
+        return peers
+    
+    # Notifies other peers of intention to leave
+    def leave_network(self, val_key):
+        peers = self.get_peers()
+        initial_size = len(peers)
+        new_network = []
+
+        for key in peers:
+            if key != val_key:
+                new_network.append(key)
+
+        final_size = len(new_network)
+        assert(initial_size - final_size == 1)
+        
+        return self.update_committee(new_network, stop_on_failure=True)
+
+    def rejoin_network(self):
+        ips = self.get_ips()
+        self.join_sawtooth(ips)
+        
+    def __update_on_chain_settings(self, command: str):
         current_chain_size = len(self.blocks()['data'])
         update_membership = append_keys(validator_keys, SAWTOOTH_UPDATE_PEER_COMMAND)
         self.run_command(update_membership)

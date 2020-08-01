@@ -18,11 +18,6 @@ def get_json(request, app):
         return ROUTE_EXECUTION_FAILED.format(msg=e)
     return req
 
-def shutdown(id):
-    #system("kill " + str(id))
-    print("received kill order")
-
-
 def add_routes(app):
     # return info about the system flask is running on
     @app.route('/')
@@ -129,6 +124,7 @@ def add_routes(app):
                 e)
 
         app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
+        
         # remove neighbour info from app
 
         #app.config[QUORUMS][quorum_id] = None
