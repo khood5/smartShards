@@ -6,10 +6,14 @@ from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY
 from src.SawtoothPBFT import USER_KEY
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
+from src.SawtoothPBFT import IDEAL_VIEW_CHANGE_MILSEC
 from src.util import stop_all_containers
 from src.util import get_container_ids
 from src.util import make_sawtooth_committee
+from src.util import check_for_confirmation
 import gc
+
+VIEW_CHANGE_WAIT_TIME_SEC = IDEAL_VIEW_CHANGE_MILSEC / 1000  # ms to seconds
 
 
 class TestSawtoothMethods(unittest.TestCase):
@@ -120,6 +124,9 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertIn('pbft-engine -vv --connect',
                           [i for i in process_names if 'pbft-engine -vv --connect' in i][0])
 
+        # give the genesis block some time to get to all peers
+        time.sleep(3)
+
         # makes sure genesis block is in each peer
         for p in peers:
             blocks = p.blocks()['data']
@@ -127,7 +134,9 @@ class TestSawtoothMethods(unittest.TestCase):
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
         ips = [p.ip() for p in peers]
+        admin = peers[0].admin_key()  # peer 0 made genesis so it has the admin key make sure all other peers get it
         for p in peers:
+            self.assertEqual(admin, p.admin_key())
             peers_config = p.sawtooth_api('http://localhost:8008/peers')['data']
             for ip in ips:
                 if ip != p.ip():  # the peer it's self is not reported in the list
@@ -143,74 +152,104 @@ class TestSawtoothMethods(unittest.TestCase):
             number_of_tx += 1
             time.sleep(3)  # make sure TX has time to be confirmed
             blockchain_size = len(p.blocks()['data'])
-            self.assertEqual(number_of_tx, blockchain_size)
+            self.assertEqual(number_of_tx, blockchain_size, p.ip())
 
     def test_high_transaction_load(self):
         peers = make_sawtooth_committee(5)
         number_of_tx = 1
         i = 0
-        for _ in range(99):  # peers start to drop old blocks at 100
+        for _ in range(10):  # peers start to drop old blocks at 100
             peers[i].submit_tx('test{}'.format(number_of_tx), '999')
 
             i = i + 1 if i < (len(peers) - 1) else 0  # cycle peers
 
             number_of_tx += 1
-            time.sleep(0.5)  # prevent DOS attack counter measure
+            time.sleep(1.5)  # prevent DOS attack counter measure
 
-        time.sleep(5)  # give the peers some time to catch up
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test{}'.format(number_of_tx - 1)))
         for p in peers:
-            blockchain_size = len(p.blocks()['data'])
-            self.assertEqual(number_of_tx, blockchain_size)
+            self.assertEqual(number_of_tx, len(p.blocks()['data']))
 
     def test_fault_tolerance(self):
-        peers = make_sawtooth_committee(7)
+        peers = make_sawtooth_committee(9)
         number_of_tx = 1  # genesis
 
         del peers[0]
-        peers[0].submit_tx('test{}'.format(number_of_tx), '999')
+        peers[0].submit_tx('test', '999')
         number_of_tx += 1
-        time.sleep(80)  # can take some time for peers to commit (potentially 40s for each failed peer)
+        # can take some time for peers to commit (potentially 5 min for failed leader)
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test{}'.format(number_of_tx - 1),
+                                               timeout=VIEW_CHANGE_WAIT_TIME_SEC * len(peers)))
         for p in peers:
-            peers_blockchain = len(p.blocks()['data'])
-            self.assertEqual(number_of_tx, peers_blockchain)
+            self.assertEqual(number_of_tx, len(p.blocks()['data']), "Peers did not commit tx in time")
 
         # should fail now
-        del peers[0]
+        del peers[:5]
         peers[0].submit_tx('fail', '000')
-        time.sleep(120)
+        time.sleep(VIEW_CHANGE_WAIT_TIME_SEC * len(peers))  # give it plenty of time to be confirmed + 30 for buffer
         for p in peers:
             peers_blockchain = len(p.blocks()['data'])
-            self.assertEqual(number_of_tx, peers_blockchain)
+            self.assertEqual(number_of_tx, peers_blockchain, p.ip())
 
     def test_large_committee(self):
-        peers = make_sawtooth_committee(10)
+        peers = make_sawtooth_committee(30)
+        number_of_tx = 1  # genesis
 
         peers[0].submit_tx('test', '999')
-        time.sleep(3)
-        for p in peers:
-            blocks = p.blocks()['data']
-            self.assertEqual(2, len(blocks))
+        number_of_tx += 1
+        time.sleep(0.5)
 
-        peers = make_sawtooth_committee(26)
-        peers[0].submit_tx('test', '999')
-        time.sleep(3)
+        peers[1].submit_tx('test1', '888')
+        number_of_tx += 1
+        time.sleep(0.5)
+
+        peers[2].submit_tx('test2', '777')
+        number_of_tx += 1
+
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test2'))
+
         for p in peers:
             blocks = p.blocks()['data']
-            self.assertEqual(2, len(blocks))
+            self.assertEqual(number_of_tx, len(blocks), p.ip())
 
     def test_peer_join(self):
-        peers = make_sawtooth_committee(4)
+        peers = make_sawtooth_committee(7)
+        number_of_tx = 1  # genesis
+        peers[0].submit_tx('test', '999')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test'))
+
+        peers[1].submit_tx('test1', '888')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test1'))
+
         peers.append(SawtoothContainer())
         peers[-1].join_sawtooth([p.ip() for p in peers])
-        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        blockchain_size = 3  # genesis+2 tx added 1 for membership and 1 for admin rights of new peer
+
+        # wait for block catch up
+        done = False
+        start = time.time()
+        while not done:
+            if len(peers[-1].blocks()['data']) >= number_of_tx - 1:  # catch up cant get last tx
+                done = True
+            elif time.time() - start > 30:
+                self.fail("New peers block catch up failed")
+
+        peers[0].update_committee([p.val_key() for p in peers])
+        number_of_tx += 1  # +1 for membership of new peer
+        time.sleep(VIEW_CHANGE_WAIT_TIME_SEC)  # wait in case leader has to change
+
+        # submit new tx with new peer so it can finally match all the others (i.e. has full blockchain)
+        peers[2].submit_tx('test2', '777')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test2'))
 
         # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
-        # and make sure they all have the three tx
+        # and make sure they all have the whole blockchain
         ips = [p.ip() for p in peers]
         for p in peers:
             peers_blocks = len(p.blocks()['data'])
-            self.assertEqual(blockchain_size, peers_blocks)
+            self.assertEqual(number_of_tx, peers_blocks, p.ip())
 
             peers_config = p.sawtooth_api('http://localhost:8008/peers')['data']
             for ip in ips:
@@ -218,93 +257,109 @@ class TestSawtoothMethods(unittest.TestCase):
                     self.assertIn("tcp://{}:8800".format(ip), peers_config)
 
         # check consensus still works
-        peers[-1].submit_tx('test', '999')
-        blockchain_size += 1
-        time.sleep(3)
+        peers[-1].submit_tx('test3', '666')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test3'))
         for p in peers:
             peers_blockchain = len(p.blocks()['data'])
-            self.assertEqual(blockchain_size, peers_blockchain)
+            self.assertEqual(number_of_tx, peers_blockchain, p.ip())
 
     def test_committee_growth(self):
-        peers = make_sawtooth_committee(4)
-        blockchain_size = 1
-        for i in range(15):
+        peers = make_sawtooth_committee(7)
+        number_of_tx = 1
+
+        peers[0].submit_tx('test', '999')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test', timeout=120))
+
+        peers[1].submit_tx('test1', '888')
+        number_of_tx += 1
+        self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test1', timeout=120))
+
+        for i in range(13):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-            blockchain_size += 2
+            # wait for blockchain catch up
+            done = False
+            start = time.time()
+            while not done:
+                if len(peers[-1].blocks()['data']) >= number_of_tx - 1:  # catch up cant get last tx
+                    done = True
+                elif time.time() - start > 30:
+                    self.fail("New peers block catch up failed")
 
-        # makes sure all peers are configured to work with each other (this is not a test of connectivity just config)
-        # and make sure they all have the three tx
-        ips = [p.ip() for p in peers]
-        for p in peers:
-            peers_blocks = len(p.blocks()['data'])
-            self.assertEqual(blockchain_size, peers_blocks)
+            peers[i].update_committee([p.val_key() for p in peers])
+            self.assertTrue(check_for_confirmation(peers, number_of_tx, timeout=120))
+            number_of_tx += 1  # +1 for membership of new peer
 
-            peers_config = p.sawtooth_api('http://localhost:8008/peers')['data']
-            for ip in ips:
-                if ip != p.ip():  # the peer it's self is not reported in the list
-                    self.assertIn("tcp://{}:8800".format(ip), peers_config)
+            # check consensus still works
+            peers[i].submit_tx('test_{}'.format(i), '777')
+            number_of_tx += 1
+            self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test_{}'.format(i), timeout=120))
 
-    # make sure that if all old peers (original ones in the committee) crash the committee can proceed
-    def test_new_peer_replace_old(self):
-        peers = make_sawtooth_committee(4)
+            # makes sure all peers are configured to work with each other (this only tests config not connectivity)
+            ips = [p.ip() for p in peers]
+            for p in peers:
+                peers_blocks = len(p.blocks()['data'])
+                self.assertGreaterEqual(number_of_tx, peers_blocks)
+
+                peers_config = p.sawtooth_api('http://localhost:8008/peers')['data']
+                for ip in ips:
+                    if ip != p.ip():  # the peer it's self is not reported in the list
+                        self.assertIn("tcp://{}:8800".format(ip), peers_config)
+
+    def test_new_peer_replace_old(self):  # make sure that if all original peers crash the committee can proceed
+        peers = make_sawtooth_committee(7)
         blockchain_size = 1
-        for i in range(20):
+        for i in range(13):
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-            blockchain_size += 2
+            # wait for blockchain catch up
+            done = False
+            start = time.time()
+            while not done:
+                if len(peers[-1].blocks()['data']) >= blockchain_size - 1:  # catch up cant get last tx
+                    done = True
+                elif time.time() - start > 30:
+                    self.fail("New peers block catch up failed")
+            peers[i % 4].update_committee([p.val_key() for p in peers])
+            self.assertTrue(check_for_confirmation(peers, blockchain_size))
+            blockchain_size += 1
 
         for _ in range(4):
             del peers[0]
+        gc.collect()  # make sure that the containers are shutdown
 
+        time.sleep(VIEW_CHANGE_WAIT_TIME_SEC + 30)  # wait for view change (timeout + time to do the view change)
         peers[0].submit_tx('test', '999')
         blockchain_size += 1
-        time.sleep(180)  # time need to confirm transactions 40 sec * 4 crashes + 20 for tx to be approved
+        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test'))
 
         for p in peers:
+            print(p.ip())
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_peer_leave(self):
-        peers = make_sawtooth_committee(7)
+        peers = make_sawtooth_committee(8)
         blockchain_size = 1
 
         old_peer = peers.pop()
-        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        blockchain_size += 2
+        peers[0].update_committee([p.val_key() for p in peers])
+        self.assertTrue(check_for_confirmation(peers, blockchain_size))
+        blockchain_size += 1
 
         for p in peers:
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
         del old_peer
+        gc.collect()  # make sure that the containers are shutdown
 
         # make sure consensus still works
         peers[0].submit_tx('test', '999')
         blockchain_size += 1
-        time.sleep(3)
+        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test'))
         for p in peers:
             self.assertEqual('999', p.get_tx('test'))
-            self.assertEqual(blockchain_size, len(p.blocks()['data']))
-
-        # remove multiple members
-        old_peers = peers[:2]
-        peers.pop()
-        peers.pop()
-        peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-        blockchain_size += 2
-
-        del old_peers
-
-        for p in peers:
-            self.assertEqual(blockchain_size, len(p.blocks()['data']))
-
-        # make sure consensus still works
-        peers[0].submit_tx('test2', '888')
-        blockchain_size += 1
-        time.sleep(3)
-        for p in peers:
-            self.assertEqual('888', p.get_tx('test2'))
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
 
     def test_committee_shrink(self):
@@ -312,56 +367,86 @@ class TestSawtoothMethods(unittest.TestCase):
         blockchain_size = 1
         for i in range(11):
             old_peer = peers.pop()
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-            blockchain_size += 2
+            peers[0].update_committee([p.val_key() for p in peers])
+            self.assertTrue(check_for_confirmation(peers, blockchain_size))
+            blockchain_size += 1
+            time.sleep(VIEW_CHANGE_WAIT_TIME_SEC)  # wait for potential view change
             del old_peer
+            gc.collect()  # make sure that the containers are shutdown
 
         peers[0].submit_tx('test', '999')
         blockchain_size += 1
-        time.sleep(3)
+        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test'))
         for p in peers:
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
             self.assertEqual('999', p.get_tx('test'))
 
     def test_committee_churn(self):
-        peers = make_sawtooth_committee(4)
+        self.skipTest("Complete committee churn not supported")
+        peers = make_sawtooth_committee(7)
         blockchain_size = 1
-        for i in range(4):
+
+        peers[0].submit_tx('start', '1')
+        blockchain_size += 1
+        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'start'))
+
+        for i in range(7):
             # add new peer
             peers.append(SawtoothContainer())
             peers[-1].join_sawtooth([p.ip() for p in peers])
-            peers[i % 4].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-            blockchain_size += 2
+            # wait for blockchain catch up
+            done = False
+            start = time.time()
+            while not done:
+                if len(peers[-1].blocks()['data']) >= blockchain_size - 1:  # catch up cant get last tx
+                    done = True
+                elif time.time() - start > 30:
+                    self.fail("New peers block catch up failed")
+            peers[0].update_committee([p.val_key() for p in peers])
+            peers[0].submit_tx("update_{}".format(i), 999)
+            blockchain_size += 1
+            self.assertTrue(check_for_confirmation(peers, blockchain_size, "update_{}".format(i),
+                                                   timeout=VIEW_CHANGE_WAIT_TIME_SEC))
+            blockchain_size += 1
 
-            # remove old peer
+            for p in peers:
+                self.assertEqual(blockchain_size, len(p.blocks()['data']))
+
             old_peer = peers.pop(0)
-            peers[0].update_committee([p.val_key() for p in peers], [p.user_key() for p in peers])
-            blockchain_size += 2
+            peers[0].update_committee([p.val_key() for p in peers])
+            self.assertTrue(check_for_confirmation(peers, blockchain_size))
+            blockchain_size += 1
+
+            self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test_{}'.format(i)))
+            for p in peers:
+                self.assertEqual(blockchain_size, len(p.blocks()['data']))
+
             del old_peer
+            gc.collect()  # make sure that the containers are shutdown
 
         peers[0].submit_tx('test', '999')
         blockchain_size += 1
-        time.sleep(3)
+        self.assertTrue(check_for_confirmation(peers, blockchain_size, 'test'))
         for p in peers:
             self.assertEqual(blockchain_size, len(p.blocks()['data']))
             self.assertEqual('999', p.get_tx('test'))
 
     def test_concurrent_committees(self):
-        set_a = make_sawtooth_committee(4)
-        set_b = make_sawtooth_committee(4)
+        set_a = make_sawtooth_committee(20)
+        set_b = make_sawtooth_committee(20)
         tx_a = 'test_a'
         tx_b = 'test_b'
         set_a[0].submit_tx(tx_a, '999')
-        time.sleep(3)
+        set_b[0].submit_tx(tx_b, '888')
+        self.assertTrue(check_for_confirmation(set_a, 2, tx_a))
+        self.assertTrue(check_for_confirmation(set_b, 2, tx_b))
         for p in set_a:
             self.assertEqual(2, len(p.blocks()['data']))
         for p in set_b:
-            self.assertEqual(1, len(p.blocks()['data']))
-
-        set_b[0].submit_tx(tx_b, '888')
-        time.sleep(3)
-        for p in set_b:
             self.assertEqual(2, len(p.blocks()['data']))
+
+        set_b[0].submit_tx('test_b_2', '777')
+        self.assertTrue(check_for_confirmation(set_b, 3, tx_b))
 
 
 if __name__ == '__main__':
