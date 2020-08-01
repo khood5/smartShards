@@ -62,7 +62,6 @@ class SmartShardPeer:
         self.app.daemon = True  # run the api as daemon so it terminates with the peer process process
         self.app.start()
 
-
     def pid(self):
         return self.app.pid
 
@@ -112,7 +111,8 @@ class SmartShardPeer:
                 neighbor_ip = neighbor[API_IP]
                 neighbor_port = neighbor[PORT]
                 neighbor_quorum = neighbor[QUORUM_ID]
-                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum, address=neighbor_ip, port=neighbor_port)
+                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum,
+                                                                          address=neighbor_ip, port=neighbor_port)
                 requests.post(url, json={})
         logging.info(("PID " + str(self.pid()) + " on port:" + str(self.port) + " has cooperatively left."))
         return True
