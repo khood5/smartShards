@@ -163,10 +163,10 @@ class TestUtilMethods(unittest.TestCase):
             for pro in psutil.process_iter():
                 pros.append(pro.pid)
             self.assertIn(pid, pros)
-            response = requests.get("http://localhost:{port}".format(port=peers[p].port))
-            peer_response = ROOT_RESPONSE
-            peer_response[PORT] = str(peers[p].port)
-            self.assertEqual(peer_response, dict(response.json()))
+            #response = requests.get("http://localhost:{port}".format(port=peers[p].port))
+            #peer_response = ROOT_RESPONSE
+            #peer_response[PORT] = str(peers[p].port)
+            #self.assertEqual(peer_response, dict(response.json()))
 
     def test_get_tx_from_host(self):
         peers = make_intersecting_committees_on_host(5, 1)
