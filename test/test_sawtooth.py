@@ -192,6 +192,7 @@ class TestSawtoothMethods(unittest.TestCase):
             self.assertEqual(number_of_tx, peers_blockchain, p.ip())
 
     def test_large_committee(self):
+
         peers = make_sawtooth_committee(30)
         number_of_tx = 1  # genesis
 
@@ -209,6 +210,41 @@ class TestSawtoothMethods(unittest.TestCase):
         self.assertTrue(check_for_confirmation(peers, number_of_tx, 'test2'))
 
         for p in peers:
+            blocks = p.blocks()['data']
+            self.assertEqual(number_of_tx, len(blocks), p.ip())
+
+    def test_concurrent_large_committee(self):
+        # if this fails then the following setting may need to be set in /etc/sysctl.conf
+        #
+        # # Setup DNS threshold for arp
+        # net.ipv4.neigh.default.gc_thresh3 = 16384
+        # net.ipv4.neigh.default.gc_thresh2 = 8192
+        # net.ipv4.neigh.default.gc_thresh1 = 4096
+        # this should work if default linux settings are being used
+        peers1 = make_sawtooth_committee(30)
+        peers2 = make_sawtooth_committee(30)
+        number_of_tx = 1  # genesis
+
+        peers1[0].submit_tx('test', '999')
+        peers2[0].submit_tx('test', '999')
+        number_of_tx += 1
+        time.sleep(0.5)
+
+        peers1[1].submit_tx('test1', '888')
+        peers2[1].submit_tx('test1', '888')
+        number_of_tx += 1
+        time.sleep(0.5)
+
+        peers1[2].submit_tx('test2', '777')
+        peers2[2].submit_tx('test2', '777')
+        number_of_tx += 1
+
+        self.assertTrue(check_for_confirmation(peers1, number_of_tx, 'test2'))
+        self.assertTrue(check_for_confirmation(peers2, number_of_tx, 'test2'))
+        for p in peers1:
+            blocks = p.blocks()['data']
+            self.assertEqual(number_of_tx, len(blocks), p.ip())
+        for p in peers2:
             blocks = p.blocks()['data']
             self.assertEqual(number_of_tx, len(blocks), p.ip())
 

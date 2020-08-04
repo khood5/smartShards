@@ -1,5 +1,3 @@
-import multiprocessing
-
 import docker as docker_api
 from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS
 from src.SawtoothPBFT import SawtoothContainer
@@ -80,6 +78,9 @@ def check_for_confirmation(peers, number_of_tx, tx_key="NO_KEY_GIVEN", timeout=U
 
 # makes a test committee of user defined size
 def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
+    if size < 4:
+        logging.error("COMMITTEE IMPOSSIBLE: can not make committees of less then 4 members, {} asked for".format(size))
+        return []
     if size < 7:
         logging.warning("COMMITTEE UNSTABLE: making committees of less then 7 members can lead to issues with adding "
                         "and removing. ")
@@ -173,7 +174,7 @@ def find_free_port():
 
 # starts a set of peers on the same host (differentiated by port number)
 # returns a dict {portNumber : SmartShardPeer}
-def make_intersecting_committees_on_host(number_of_committees: int, intersections: int, join_after = False):
+def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
     inter = make_intersecting_committees(number_of_committees, intersections)
     peers = {}
     for i in inter:
@@ -194,7 +195,7 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
             NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
+        response = json.loads(requests.post(url, json=add_json).text.replace("\n", ""))["NEIGHBORS"]
         peers[port].app.api.config[QUORUMS][quorum_id] = response
 
         quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
@@ -203,7 +204,7 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
             NEIGHBOURS: neighbors_send
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
+        response = json.loads(requests.post(url, json=add_json).text.replace("\n", ""))["NEIGHBORS"]
         peers[port].app.api.config[QUORUMS][quorum_id] = response
 
     return peers

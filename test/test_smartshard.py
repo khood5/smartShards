@@ -127,7 +127,7 @@ class TestSmartShard(unittest.TestCase):
     def test_cooperative_churn(self):
         num_committees = 8
         # set up initial network
-        peers = make_intersecting_committees_on_host(num_committees, 1, True)
+        peers = make_intersecting_committees_on_host(num_committees, 1)
 
         # pick a random peer to leave
         random.seed(time.gmtime())
