@@ -1,15 +1,13 @@
 import requests
 
-from src.Intersection import Intersection
 from src.api import create_app
-from src.api.api_util import get_plain_text
 from src.api.constants import PBFT_INSTANCES, QUORUMS, NEIGHBOURS, API_IP, PORT, DOCKER_IP, QUORUM_ID
 import logging
 import logging.handlers
 import multiprocessing as mp
 import os
+import time
 import json
-import random
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -71,11 +69,17 @@ class SmartShardPeer:
     def committee_id_b(self):
         return self.app.api.config[PBFT_INSTANCES].committee_id_b
 
-    def port(self):
+    def peer_port(self):
         return self.port
+
+    def check_neighbors(self, port):
+        url = "http://localhost:{port}/quoruminfo/".format(port=port)
+        recv_neighbors = json.loads(requests.post(url, json={}).text)["neighbors"]
+        self.app.api.config[QUORUMS] = recv_neighbors
 
     # Leave the network cooperatively
     def leave(self):
+        self.check_neighbors(self.port)
         quorums = self.app.api.config[QUORUMS]
         quorum_ids = list(quorums.keys())
         logging.info("API peer on port :" + str(self.port) + " cooperatively leaving quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
@@ -104,16 +108,40 @@ class SmartShardPeer:
                 instance_b.rejoin_network()
             return False
 
-        # Notify neighbor SmartShardPeers to remove this neighbor
+        
+        try:
+            iter(quorums)
+        except:
+            logging.error(("{}: SmartShard API on " + instance_a.ip() + " was unable to cooperatively leave committee " + str(id_a) + " - rejoining.").format(instance_a.ip()))
+            instance_a.rejoin_network()
+            logging.error(("{}: SmartShard API on " + instance_b.ip() + " was unable to cooperatively leave committee " + str(id_b) + " - rejoining.").format(instance_b.ip()))
+            instance_b.rejoin_network()
+            return False
+
+        # Notify neighbors to remove this peer
         for committee_id in quorums:
-            # Have self removed from neighbors' neighbor list
             for neighbor in quorums[committee_id]:
                 neighbor_ip = neighbor[API_IP]
                 neighbor_port = neighbor[PORT]
                 neighbor_quorum = neighbor[QUORUM_ID]
                 url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum,
                                                                           address=neighbor_ip, port=neighbor_port)
-                requests.post(url, json={})
-        logging.info(("PID " + str(self.pid()) + " on port:" + str(self.port) + " has cooperatively left."))
+                attempts = 0
+
+                # Handle connection refusals due to heavy network traffic
+                while attempts < 5:
+                    attempts += 1
+                    try:
+                        requests.post(url, json={})
+                    except requests.exceptions.ConnectionError:
+                        logging.error("SmartShardPeer PID " + str(self.pid()) + ", port " + str(self.port) + " - co-op leave notif connection refused by peer " + neighbor_ip + str(neighbor_port) + ".")
+                        logging.info("SmartShardPeer PID " + str(self.pid()) + ", port " + str(self.port) + " waiting for 5 seconds to retry...")
+                        time.sleep(5)
+                        continue
+                    break
+                    
+                if attempts > 5:
+                    return False
+
+        logging.info(("PID " + str(self.pid()) + " on port:" + str(self.port) + " - successful co-op leave."))
         return True
-                

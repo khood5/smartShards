@@ -130,8 +130,8 @@ def add_routes(app):
                 e)
 
         app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
-        
-        del app.config[QUORUMS][quorum_id]
+
+        app.config[QUORUMS][quorum_id] = None
 
         return ROUTE_EXECUTED_CORRECTLY
 

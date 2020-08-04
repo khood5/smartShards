@@ -200,8 +200,6 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
 
-        url = "http://localhost:{port}/quoruminfo/".format(port=port)
-        recv_neighbors = json.loads((requests.post(url, json={}).text))["neighbors"]
-        peers[port].app.api.config[QUORUMS] = recv_neighbors
+        peers[port].check_neighbors(port)
 
     return peers
