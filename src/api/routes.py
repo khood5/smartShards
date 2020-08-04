@@ -94,14 +94,20 @@ def add_routes(app):
                 e)
 
         app.logger.info("Adding quorum ID {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
-
-        js = json.loads(json.dumps({
-            "NEIGHBORS": neighbours
-        }))
-
+        # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
+        return ROUTE_EXECUTED_CORRECTLY
 
-        return js
+
+    @app.route('/quoruminfo/', methods=['POST'])
+    def quoruminfo():
+        if app.config[QUORUMS]:
+            res_json = json.loads(json.dumps({
+                "neighbors": app.config[QUORUMS]
+            }))
+            return res_json
+        else:
+            return ROUTE_EXECUTION_FAILED
 
     # remove neighbor from API after it leaves
     @app.route('/remove/<quorum_id>', methods=['POST'])
@@ -125,9 +131,6 @@ def add_routes(app):
 
         app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
         
-        # remove neighbour info from app
-
-        #app.config[QUORUMS][quorum_id] = None
         del app.config[QUORUMS][quorum_id]
 
         return ROUTE_EXECUTED_CORRECTLY

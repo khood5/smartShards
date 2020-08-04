@@ -125,9 +125,9 @@ class TestSmartShard(unittest.TestCase):
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
 
     def test_cooperative_churn(self):
-        num_committees = 8
+        num_committees = 5
         # set up initial network
-        peers = make_intersecting_committees_on_host(num_committees, 1, True)
+        peers = make_intersecting_committees_on_host(num_committees, 1)
 
         # pick a random peer to leave
         random.seed(time.gmtime())

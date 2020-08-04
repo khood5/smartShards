@@ -173,7 +173,7 @@ def find_free_port():
 
 # starts a set of peers on the same host (differentiated by port number)
 # returns a dict {portNumber : SmartShardPeer}
-def make_intersecting_committees_on_host(number_of_committees: int, intersections: int, join_after = False):
+def make_intersecting_committees_on_host(number_of_committees: int, intersections: int):
     inter = make_intersecting_committees(number_of_committees, intersections)
     peers = {}
     for i in inter:
@@ -187,23 +187,21 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         for p in peers:
             if peers[p].port != port:
                 other_peers[p] = peers[p]
-
-        neighbors_send = get_neighbors(quorum_id, other_peers)
-                
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
-        peers[port].app.api.config[QUORUMS][quorum_id] = response
+        requests.post(url, json=add_json)
 
         quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
-        neighbors_send = get_neighbors(quorum_id, other_peers)
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads((requests.post(url, json=add_json).text).replace("\n", ""))["NEIGHBORS"]
-        peers[port].app.api.config[QUORUMS][quorum_id] = response
+        requests.post(url, json=add_json)
+
+        url = "http://localhost:{port}/quoruminfo/".format(port=port)
+        recv_neighbors = json.loads((requests.post(url, json={}).text))["neighbors"]
+        peers[port].app.api.config[QUORUMS] = recv_neighbors
 
     return peers
