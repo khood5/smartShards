@@ -124,6 +124,12 @@ class TestSmartShard(unittest.TestCase):
 
     def test_cooperative_leave(self):
         num_committees = 8
+
+        # Tracks how many times each individual quorum has lost a peer
+        sawtooth_committees_members = {}
+        for i in range(0, num_committees):
+            sawtooth_committees_members[i] = num_committees - 1
+
         # set up initial network
         peers = make_intersecting_committees_on_host(num_committees, 1)
 
@@ -162,8 +168,13 @@ class TestSmartShard(unittest.TestCase):
         # Do not allow peers to leave if they should not be allowed to leave
         leave_success = rand_peer.leave()
         if leave_success:
+            id_a = peers[rand_port].app.api.config[PBFT_INSTANCES].committee_id_a
+            id_b = peers[rand_port].app.api.config[PBFT_INSTANCES].committee_id_b
+            sawtooth_committees_members[int(id_a)] -= 1
+            sawtooth_committees_members[int(id_b)] -= 1
+
             del peers[rand_port]
-            # Delay to allow other peers to catch up
+            # Delay to allow other peers to cat ch up
             time.sleep(2)
         else:
             # Peer failed to cooperatively leave
@@ -195,16 +206,22 @@ class TestSmartShard(unittest.TestCase):
         self.assertEqual(False, port_found)
 
         # Continue deleting peers until at breaking point of consensus
-        while num_committees > 5:
+        while True:
             random.seed(time.gmtime())
             rand_port = random.choice(list(peers.keys()))
             rand_peer = peers[rand_port]
-            leave_success = rand_peer.leave()
-            self.assertEqual(True, leave_success)
+            rand_inter = rand_peer.app.api.config[PBFT_INSTANCES]
 
-        # This peer should not be allowed to leave
-        random.seed(time.gmtime())
-        rand_port = random.choice(list(peers.keys()))
-        rand_peer = peers[rand_port]
-        leave_success = rand_peer.leave()
-        self.assertEqual(False, leave_success)
+            id_a = rand_inter.committee_id_a
+            id_b = rand_inter.committee_id_b
+
+            leave_success = rand_peer.leave()
+            del peers[rand_port]
+            sawtooth_committees_members[int(id_a)] -= 1
+            sawtooth_committees_members[int(id_b)] -= 1
+
+            if sawtooth_committees_members[int(id_a)] >= 4 and sawtooth_committees_members[int(id_b)] >= 4:
+                self.assertEqual(True, leave_success)
+            else:
+                self.assertEqual(False, leave_success)
+                return

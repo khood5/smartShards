@@ -79,10 +79,10 @@ class SmartShardPeer:
 
     # Leave the network cooperatively
     def leave(self):
+        logging.info("API peer on port :" + str(self.port) + " attempting to cooperatively leave.")
         self.check_neighbors(self.port)
         quorums = self.app.api.config[QUORUMS]
         quorum_ids = list(quorums.keys())
-        logging.info("API peer on port :" + str(self.port) + " cooperatively leaving quorums " + str(quorum_ids[0]) + ", " + str(quorum_ids[1]))
 
         inter = self.app.api.config[PBFT_INSTANCES]
         instance_a = inter.instance_a
@@ -124,7 +124,8 @@ class SmartShardPeer:
                 neighbor_ip = neighbor[API_IP]
                 neighbor_port = neighbor[PORT]
                 neighbor_quorum = neighbor[QUORUM_ID]
-                url = "http://{address}:{port}/remove/{quorum_id}".format(quorum_id=neighbor_quorum,
+
+                url = "http://{address}:{port}/remove/{remove_port}".format(remove_port=self.port,
                                                                           address=neighbor_ip, port=neighbor_port)
                 attempts = 0
 
@@ -138,8 +139,9 @@ class SmartShardPeer:
                         logging.info("SmartShardPeer PID " + str(self.pid()) + ", port " + str(self.port) + " waiting for 5 seconds to retry...")
                         time.sleep(5)
                         continue
+
                     break
-                    
+
                 if attempts > 5:
                     return False
 

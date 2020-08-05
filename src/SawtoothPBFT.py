@@ -209,23 +209,11 @@ class SawtoothContainer:
         initial_size = len(peers)
         new_network = []
 
-        print("our key:")
-        print(val_key)
-
         for key in peers:
             if key != val_key:
                 new_network.append(key)
-                print(key + " is staying")
-            else:
-                print(key + " is leaving")
 
         final_size = len(new_network)
-        print("INITIAL")
-        print(initial_size)
-        print("FINAL")
-        print(final_size)
-        print("DIFFERENCE")
-        print(initial_size - final_size)
 
         assert(initial_size - final_size <= 1)
         

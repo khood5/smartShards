@@ -110,28 +110,18 @@ def add_routes(app):
             return ROUTE_EXECUTION_FAILED
 
     # remove neighbor from API after it leaves
-    @app.route('/remove/<quorum_id>', methods=['POST'])
-    def remove(quorum_id=None):
+    @app.route('/remove/<remove_port>', methods=['POST'])
+    def remove(remove_port=None):
         req = get_json(request, app)
-        # neighbours = req['NODE']
-        
-        # try to access peer object (if peer is inaccessible then peer has not started)
-        try:
-            # check and make sure peer is in quorum
-            if not app.config[PBFT_INSTANCES].in_committee(quorum_id):
-                app.logger.info("Peer not in committee {}, ignoring remove request.".format(quorum_id))
-                return ROUTE_EXECUTION_FAILED.format(msg="Peer not in committee {} can not leave PBFT"
-                                                     .format('quorum_id'))
-        except AttributeError as e:
-            app.logger.error("Peer not started request, but is trying to be removed. Run /start/<quorum_id_a>/<quorum_id_b> first")
-            app.logger.error(e)
-            return ROUTE_EXECUTION_FAILED.format(msg="") + "Non-started peer attempted to cooperatively leave." \
-                                                           "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
-                e)
 
-        app.logger.info("Removing {q} from node {n}".format(q=quorum_id, n=app))
+        app.logger.info("Removing {q} from node {n}".format(q=remove_port, n=app))
 
-        app.config[QUORUMS][quorum_id] = None
+        for committee_id in app.config[QUORUMS]:
+            index = 0
+            for neighbor in app.config[QUORUMS][committee_id]:
+                if str(neighbor[PORT]) == str(remove_port):
+                    del app.config[QUORUMS][committee_id][index]
+                index += 1
 
         return ROUTE_EXECUTED_CORRECTLY
 
