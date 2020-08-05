@@ -21,7 +21,7 @@ OUTPUT_FILE = "SawtoothPBFTPerformanceGraph.csv"
 
 # time between submissions NOTE: range will be min + 1 and max - 1
 SUB_MIN = 2  # sec
-SUB_MAX = 31
+SUB_MAX = 5
 
 # const
 IP_ADDRESS = "localhost"
