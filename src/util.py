@@ -188,23 +188,19 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         for p in peers:
             if peers[p].port != port:
                 other_peers[p] = peers[p]
-
-        neighbors_send = get_neighbors(quorum_id, other_peers)
-                
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads(requests.post(url, json=add_json).text.replace("\n", ""))["NEIGHBORS"]
-        peers[port].app.api.config[QUORUMS][quorum_id] = response
+        requests.post(url, json=add_json)
 
         quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_b
-        neighbors_send = get_neighbors(quorum_id, other_peers)
         add_json = json.loads(json.dumps({
-            NEIGHBOURS: neighbors_send
+            NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
-        response = json.loads(requests.post(url, json=add_json).text.replace("\n", ""))["NEIGHBORS"]
-        peers[port].app.api.config[QUORUMS][quorum_id] = response
+        requests.post(url, json=add_json)
+
+        peers[port].check_neighbors(port)
 
     return peers

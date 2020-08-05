@@ -214,7 +214,8 @@ class SawtoothContainer:
                 new_network.append(key)
 
         final_size = len(new_network)
-        assert(initial_size - final_size == 1)
+
+        assert(initial_size - final_size <= 1)
         
         return self.update_committee(new_network, stop_on_failure=True)
 
