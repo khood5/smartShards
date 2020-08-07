@@ -14,8 +14,8 @@ import gc
 # defaults
 NUMBER_OF_TX = 10
 NUMBER_OF_EXPERIMENTS = 2
-MIN = 5
-MAX = 7
+MIN = 7
+MAX = 10
 INTERSECTION = 1
 OUTPUT_FILE = "SawtoothPBFTPerformanceGraph.csv"
 
