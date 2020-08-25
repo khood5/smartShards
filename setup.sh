@@ -68,7 +68,7 @@ export PYTHONPATH=$PYTHONPATH:$PWD
 ######################################################
 #                  final message                     #
 ######################################################
-echo "if you have not do so yet, run the following comands then reboot\n"
+echo "if you have not done so yet, run the following comands then reboot\n"
 echo "sudo groupadd docker; sudo usermod -aG docker $USER; newgrp docker"
 echo "then rerun setup.sh to continue setup"
 

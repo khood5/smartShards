@@ -2,6 +2,7 @@
 USER_KEY = 'user_key'
 VALIDATOR_KEY = 'validator_key'
 API_IP = 'ip_address'
+API_PORT = "api_port"
 DOCKER_IP = 'docker_ip_address'
 PORT = 'port'
 NEIGHBOURS = 'neighbours'
@@ -14,3 +15,6 @@ ROUTE_EXECUTED_CORRECTLY = "SUCCESS!"
 ROUTE_EXECUTION_FAILED = "ERROR: {msg}"
 TRANSACTION_KEY = "key"
 TRANSACTION_VALUE = "value"
+PENDING_PEERS = "pending_peers"
+REFRESH_TYPE = "refresh_type"
+NETWORK_SIZE = "network_size"

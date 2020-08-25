@@ -1,12 +1,11 @@
 import requests
-
 from src.SmartShardPeer import SmartShardPeer
 from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS, PBFT_INSTANCES, QUORUM_ID, PORT
-from src.util import stop_all_containers, make_intersecting_committees_on_host, check_for_confirmation
+from src.util import stop_all_containers, make_intersecting_committees_on_host, check_for_confirmation, join_live_network
 from src.api.api_util import get_plain_text
 import docker as docker_api
 import warnings
@@ -225,3 +224,21 @@ class TestSmartShard(unittest.TestCase):
             else:
                 self.assertEqual(False, leave_success)
                 return
+
+    def test_cooperative_join(self):
+        num_committees = 5
+
+        # set up initial network
+        peers = make_intersecting_committees_on_host(num_committees, 1)
+
+        new_peers = []
+
+        for i in range(6):
+            random.seed(time.gmtime())
+            rand_port = random.choice(list(peers.keys()))
+            rand_peer = peers[rand_port]
+            rand_peer_pid = rand_peer.pid()
+            rand_peer_quorums = [rand_peer.committee_id_a(), rand_peer.committee_id_b()]
+
+            new_peer = join_live_network(rand_peer)
+            new_peers.append(new_peer)

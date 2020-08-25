@@ -1,6 +1,6 @@
 from flask import Flask
 from src.api.routes import add_routes
-from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS
+from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS, PENDING_PEERS
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 
 
@@ -16,6 +16,7 @@ def create_app(instances=None):
     # QUORUM_ID: other quorum that can be reached by this API (in the ex quorum A can reach B via 192.168.1.1:8080)
     # ex: {'a':[{API_IP:192.168.1.1, PORT_KEY:8080, QUORUM_ID:'b'},{IP_ADDRESS:192.168.1.2 ...
     new_app.config[QUORUMS] = {}
+    new_app.config[PENDING_PEERS] = {}
 
     add_routes(new_app)
 

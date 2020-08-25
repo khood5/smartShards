@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, PENDING_PEERS
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
@@ -122,7 +122,6 @@ def make_single_intersection(instances: list, committee_size: int):
 
     return peers
 
-
 def make_intersecting_committees(number_of_committees: int, intersections: int):
     pbft_instance = []
     committee_size = (number_of_committees - 1) * intersections
@@ -140,6 +139,24 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
         intersecting_peers = make_single_intersection(committee_section, section_size)
         peers += intersecting_peers
     return peers
+
+def join_live_network(reference_peer):
+    reference_peer.refresh_config(QUORUMS, reference_peer.port)
+    port_number = find_free_port()
+    a = SawtoothContainer()
+    b = SawtoothContainer()
+    inter = Intersection(a, b, 'a', 'b')
+    new_peer = SmartShardPeer(inter, port_number)
+    new_peer.start()
+    port_json = json.loads(json.dumps({
+            PORT: new_peer.port
+    }))
+    url = "http://localhost:{port}/join_queue/".format(port=reference_peer.port)
+    requests.post(url, json=port_json)
+
+    reference_peer.notify_neighbors_pending_peer()
+
+    return new_peer
 
 
 def get_neighbors(quorum, network: map):
@@ -201,6 +218,6 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
 
-        peers[port].check_neighbors(port)
+        peers[port].refresh_config(QUORUMS, port)
 
     return peers
