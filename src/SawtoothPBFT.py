@@ -2,9 +2,10 @@ from json import JSONDecodeError
 
 import docker
 import json
-import time
+import time, threading
 import logging
 import logging.handlers
+import requests
 import os
 from pathlib import Path
 
@@ -22,6 +23,7 @@ COMMIT_VIEW_CHANGE_MILSEC = 15000  # 15 sec
 # key locations in container
 USER_KEY = {"priv": "/root/.sawtooth/keys/root.priv", "pub": "/root/.sawtooth/keys/root.pub"}
 VALIDATOR_KEY = {"priv": "/etc/sawtooth/keys/validator.priv", "pub": "/etc/sawtooth/keys/validator.pub"}
+OFF_CHAIN_SETTINGS = "/etc/sawtooth/validator.toml"
 ADMIN_KEY = {"admin": "/admin.priv"}
 # these commands are used to create the genesis block for a PBFT committee, they are listed in the order they should be
 # run, they only need to be executed once on one peer
@@ -53,11 +55,16 @@ SAWTOOTH_UPDATE_PEER_COMMAND = "sawset proposal create \
                              --key {user_priv} sawtooth.consensus.pbft.members=\'{keys}\'"
 
 # Lists all peer IPs in a consensus committee
+#SAWTOOTH_GET_IPS_COMMAND = "sawtooth peer list -F json --url {tcp_ip}"
 SAWTOOTH_GET_IPS_COMMAND = "sawtooth peer list -F json"
 
 # Lists all peer IP in a consensus committee
 SAWTOOTH_GET_PEERS_COMMAND = "sawtooth settings list --filter sawtooth.consensus.pbft.members --format json"
 
+SAWTOOTH_GET_BLOCKS_LIST = "sawtooth block list"
+
+# Returns helpful info about the blockchain
+SAWTOOTH_COMPARE_CHAINS = "sawnet compare-chains urls"
 
 # this command is used to give peers permission to add/remove other peers from the committee
 # it must be executed on one current member of the committee that has permission
@@ -76,7 +83,7 @@ BLOCKCHAIN_CATCHUP = 15
 # run
 # some of the commands (validator) need to have the list of other peers in the committee appended to in the form
 # --peers tcp://172.17.0.3:8800,tcp://172.17.0.4:8800, ...
-# this dose not include the peer that the commands are being executed on
+# this does not include the peer that the commands are being executed on
 # all commands should end with a &
 SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator  \
                             --bind component:tcp://127.0.0.1:4004 \
@@ -122,6 +129,7 @@ class SawtoothContainer:
         self.run_command('sawadm keygen')
         self.__val_key = self.run_command('cat {val_pub}'.format(val_pub=VALIDATOR_KEY["pub"]))
         self.__user_key = self.run_command('cat {user_pub}'.format(user_pub=USER_KEY["pub"]))
+        self.catching_up = False
 
     def __del__(self):
         self.__container.stop(timeout=0)
@@ -185,6 +193,102 @@ class SawtoothContainer:
         else:
             logging.error("{}: UPDATE FAILED".format(self.ip()))
         return False
+
+    def setup_offchain_config(self, validators):
+        tcp_formatted = []
+        for address in validators:
+            tcp_formatted.append("tcp://" + address + ":8800")
+
+        self.run_command('cp -a {settings_path}.example {settings_path}'.format(settings_path=OFF_CHAIN_SETTINGS))
+        self.run_command('cat {settings_path}'.format(settings_path=OFF_CHAIN_SETTINGS))
+
+        current_settings = self.run_command('cat {settings_path}'.format(settings_path=OFF_CHAIN_SETTINGS))
+
+        # Update endpoint settings
+        search_str = "endpoint = "
+        search_pos = current_settings.find(search_str)
+        address_pos = current_settings.find("tcp", search_pos)
+        port_pos = current_settings.find(":8800", address_pos)
+        
+        cfg_prefix = current_settings[0:address_pos - 1]
+
+        new_cfg = cfg_prefix + "\"tcp://" + self.ip() + ":8800\"" + current_settings[port_pos + 6:-1]
+        current_settings = new_cfg
+
+        # Update peers settings
+        search_str = "peers = "
+        search_pos = current_settings.find(search_str)
+        print("peers search pos " + str(search_pos))
+        peers_start_pos = current_settings.find("[", search_pos)
+        print("peers start pos " + str(peers_start_pos))
+        peers_end_pos = current_settings.find("]", peers_start_pos) + 1
+        print("peers end pos " + str(peers_end_pos))
+        
+        cfg_prefix = current_settings[0:peers_start_pos]
+        if cfg_prefix[search_pos - 1] == "#" or cfg_prefix[search_pos - 2] == "#":
+            cfg_prefix = cfg_prefix[0:search_pos - 2] + search_str
+
+        new_cfg = cfg_prefix + str(tcp_formatted).replace("'", "\"") + current_settings[peers_end_pos:-1]
+        current_settings = new_cfg
+
+        # Update bind settings
+        search_str = "bind = ["
+        search_pos = current_settings.find(search_str)
+        bind_start_pos = current_settings.find("[", search_pos)
+        bind_tbl = "[\"component:tcp://127.0.0.1:4004\",\"network:tcp://" + self.ip() + ":8800\",\"consensus:tcp://" + self.ip() + ":5050\""
+        end_bind_pos = current_settings.find("]", search_pos)
+
+        cfg_prefix = current_settings[0:bind_start_pos]
+        new_cfg = cfg_prefix + bind_tbl + current_settings[end_bind_pos:-1]
+        current_settings = new_cfg
+
+        print(new_cfg)
+
+        # two quotes is not a typo
+        cmd = '''echo "{updated_config}"" > {config_filepath}'''.format(updated_config=new_cfg, config_filepath=OFF_CHAIN_SETTINGS)
+        self.run_command(cmd)
+
+        #self.run_command('cat {settings_path}'.format(settings_path=OFF_CHAIN_SETTINGS))
+
+        logging.info("{ip}: Initiated block bootstrapping for cooperative churn - reference validators {vals}".format(ip=self.ip(), vals=str(tcp_formatted)))
+        self.catching_up = True
+
+        self.join_sawtooth(validators)
+
+        #threading.Timer(10, self.set_reference_validators, args = [validators, True])
+
+        print("Waiting to allow peer to bootstrap...")
+        time.sleep(6 * len(validators))
+        self.set_reference_validators(validators, True)
+
+    # Supply a pending validator with addresses of other validators to poll for chain data to "catch up" with
+    def set_reference_validators(self, validators=None, repeated=False):
+        print(self.ip() + " SRV called with " + str(validators) + " " + str(repeated))
+        
+        print("VALIDATORS")
+        print(validators)
+
+        if repeated == False and self.catching_up == False:
+            self.setup_offchain_config(validators)
+        else:
+            result = self.run_command(SAWTOOTH_GET_BLOCKS_LIST)
+            while result.find("503 Service Unavailable") != -1:
+                print("peer not setup yet")
+                print(self.blocks())
+                result = self.run_command(SAWTOOTH_GET_BLOCKS_LIST)
+            print("peer has caught up.")
+
+    def get_ips_from_peer(self, ip):
+        #cmd = SAWTOOTH_GET_IPS_COMMAND.format(tcp_ip="http://" + ip + ":8008") # When distributed
+        #cmd = SAWTOOTH_GET_IPS_COMMAND.format(tcp_ip="http://localhost:8008")
+        cmd = SAWTOOTH_GET_IPS_COMMAND
+        print("cmd: " + str(cmd))
+        result = (json.dumps(json.loads(self.run_command(cmd))).replace('\\', "")).replace("tcp://", "")
+        list_start = result.find("[")
+        ips_str = (result[list_start:])
+
+        ips = json.loads(ips_str)
+        return ips
 
     def get_ips(self):
         result = (json.dumps(json.loads(self.run_command(SAWTOOTH_GET_IPS_COMMAND))).replace('\\', "")).replace("tcp://", "")

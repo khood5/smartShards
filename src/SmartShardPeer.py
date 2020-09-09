@@ -103,7 +103,7 @@ class SmartShardPeer:
         print("refreshed cfg type " + type + " to")
         print(recv_cfg)
 
-    def notify_neighbors_pending_peer(self):
+    def notify_neighbors_pending_peer(self, pending_port=None):
         self.refresh_config(QUORUMS, self.port)
         quorums = self.app.api.config[QUORUMS]
         self.refresh_config(PENDING_PEERS, self.port)
@@ -118,7 +118,7 @@ class SmartShardPeer:
                 neighbor_port = neighbor[PORT]
                 neighbor_quorum = neighbor[QUORUM_ID]
 
-                url = "http://{address}:{port}/new_pending_peer/{pending_port}".format(pending_port=self.port,
+                url = "http://{address}:{port}/new_pending_peer/{pending_port}".format(pending_port=pending_port,
                                                                           address=neighbor_ip, port=neighbor_port)
                 self.notify_neighbor(url)
 

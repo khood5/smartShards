@@ -1,7 +1,7 @@
 import json
 
 from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID
-from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, API_PORT, VALIDATOR_KEY, USER_KEY, DOCKER_IP, PENDING_PEERS, REFRESH_TYPE, NETWORK_SIZE
+from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, API_PORT, VALIDATOR_KEY, USER_KEY, DOCKER_IP, PENDING_PEERS, ACCEPTED_PEERS, REFRESH_TYPE, NETWORK_SIZE, TCP_IP, BOOTSTRAP
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
 from src.structures import Transaction
@@ -19,9 +19,20 @@ def get_json(request, app):
         return ROUTE_EXECUTION_FAILED.format(msg=e)
     return req
 
-def check_pending_assigned(app, check_quorum=None, new_quorum=None):
+def refresh_config(type=None, app=None):
+    if app.config[type]:
+        res_json = json.loads(json.dumps({
+            type: app.config[type]
+        }))
+        return res_json
+    else:
+        return ROUTE_EXECUTION_FAILED
+
+def check_pending_assigned(app, check_quorum=None, new_quorum=None, port=None):
     if check_quorum == new_quorum:
         return False
+    refresh_config(QUORUMS, app)
+    refresh_config(ACCEPTED_PEERS, app)
     quorums = app.config[QUORUMS]
     #self.refresh_config(PENDING_PEERS, self.port)
 
@@ -31,19 +42,25 @@ def check_pending_assigned(app, check_quorum=None, new_quorum=None):
             neighbor_port = neighbor[PORT]
             neighbor_quorum = neighbor[QUORUM_ID]
 
-            url = "http://{address}:{port}/check_pending_assigned/{check_quorum}/{new_quorum}".format(address=neighbor_ip, port=neighbor_port, new_quorum=new_quorum, check_quorum=check_quorum)
+            url = "http://{address}:{port}/check_pending_endpoint/{check_quorum}/{new_quorum}".format(address=neighbor_ip, port=neighbor_port, new_quorum=new_quorum, check_quorum=check_quorum)
             already_assigned = json.loads(requests.post(url, json={}).text)["assigned"]
-            if already_assigned:
+            already_accepted = False
+            try:
+                already_accepted = app.config[ACCEPTED_PEERS][port]
+            except KeyError:
+                pass
+            print("found already_accepted" + str(already_accepted))
+            if already_assigned == True or already_accepted == True:
                 print("IN CPAROUTE RETURN TRUE")
                 return True
-            print("IN CPAROUTE RETURN FALSE")
+    print("IN CPAROUTE RETURN FALSE")
     return False
 
 def get_pending_quorum(app, joining_port):
     pending_quorum = None
 
     if len(app.config[PENDING_PEERS]) == 0:
-        print("case a")
+        #print("case a")
         highest_quorum_num = 0
         highest_quorum_id = None
 
@@ -69,9 +86,9 @@ def get_pending_quorum(app, joining_port):
         if highest_local_quorum > highest_quorum_num:
             highest_quorum_num = highest_local_quorum
             highest_quorum_id = chr(highest_quorum_num + 48)
-            print("HIGHEST LOCAL FOUND")
-            print(highest_quorum_num)
-            print(highest_quorum_id)
+            #print("HIGHEST LOCAL FOUND")
+            #print(highest_quorum_num)
+            #print(highest_quorum_id)
 
         next_quorum_num = highest_quorum_num + 1  
         next_quorum_id = chr(next_quorum_num + 48)
@@ -80,7 +97,7 @@ def get_pending_quorum(app, joining_port):
         app.config[PENDING_PEERS][pending_quorum] = []
         app.config[NETWORK_SIZE] = next_quorum_num
     else:
-        print("case b")
+        #print("case b")
         pending = app.config[PENDING_PEERS]
         pending_quorum = list(pending.keys())[0]
 
@@ -92,7 +109,7 @@ def get_pending_quorum(app, joining_port):
 
     app.config[PENDING_PEERS][pending_quorum].append(str(joining_port))
 
-    print("running check")
+    #print("running check")
     print(app.config[PENDING_PEERS][pending_quorum]) 
     print(str(pending_quorum))
 
@@ -105,53 +122,46 @@ def get_pending_quorum(app, joining_port):
         our_port = app.config[API_PORT]
 
         for joining_peer in app.config[PENDING_PEERS][pending_quorum]:
+            if joining_peer is None:
+                continue
             index = app.config[PENDING_PEERS][pending_quorum].index(joining_peer)
+            if str(index) == str(pending_quorum):
+                app.config[PENDING_PEERS][pending_quorum][index] = None
+                continue
             print("NET SIZE " + str(app.config[NETWORK_SIZE]) + " index " + str(index) + " PQ " + str(pending_quorum))
-            if check_pending_assigned(app, str(index), pending_quorum):
+            already_accepted = False
+            try:
+                already_accepted = app.config[ACCEPTED_PEERS][str(joining_peer)]
+                print("Found app.config[accepted_peers][" + str(joining_peer) + "] = " + str(app.config[ACCEPTED_PEERS][str(joining_peer)]))
+            except KeyError:
+                pass
+            print("keyerror passing")
+            if check_pending_assigned(app, str(index), pending_quorum, str(joining_peer)) or already_accepted == True:
                 print("WAS ALREADY FOUND - SKIPPING")
                 continue
 
             print("[" + str(app.config[API_PORT]) + "] Peer on port " + str(joining_peer) + " will be member of quorums " + str(index) + ", " + str(pending_quorum))
             new_a = instance_a
             new_b = SawtoothContainer()
-            new_inter = Intersection(new_a, new_b, id_a, pending_quorum)
+
+            reference_ips = []
+
+            for quorum in app.config[QUORUMS]:
+                for neighbor in app.config[QUORUMS][quorum]:
+                    reference_ips.append(neighbor[TCP_IP])
+                    #reference_ips.append("tcp://" + neighbor[TCP_IP] + ":8800")
+
+            new_b.set_reference_validators(reference_ips)
+            new_b.start_sawtooth(reference_ips)
+
+            #new_inter = Intersection(new_a, new_b, id_a, pending_quorum)
             net_size = app.config[NETWORK_SIZE] + 1
             
-            containers_a = [SawtoothContainer() for _ in range(net_size)]
-            user_keys_a = [i.user_key() for i in containers_a]
-            val_keys_a = [i.val_key() for i in containers_a]
-            committee_ips_a = [i.ip() for i in containers_a]
 
-            containers_b = [SawtoothContainer() for _ in range(net_size)]
-            user_keys_b = [i.user_key() for i in containers_b]
-            val_keys_b = [i.val_key() for i in containers_b]
-            committee_ips_b = [i.ip() for i in containers_b]
-
-            intersections = [Intersection(containers_a[i], containers_b[i], id_a, id_b) for i in range(net_size)]
-
-            intersections[0].make_genesis(id_a, val_keys_a, user_keys_a)
-            intersections[0].make_genesis(id_b, val_keys_b, user_keys_b)
-
-            ip_a = new_a.ip()
-            ip_b = new_b.ip()
-            val_key_a = new_a.val_key()
-            val_key_b = new_b.val_key()
-            user_key_a = new_a.user_key()
-            user_key_b = new_b.user_key()
-
-            new_inter.make_genesis(pending_quorum, val_keys_a, user_keys_a)
-            new_inter.make_genesis(pending_quorum, val_keys_b, user_keys_b)
-
-            ips_a = [p.ip() for p in containers_a]
-            for p in containers_a:
-                p.join_sawtooth(ips_a)
-
-            ips_b = [p.ip() for p in containers_b]
-            for p in containers_b:
-                p.join_sawtooth(ips_b)
-
-            app.config[PBFT_INSTANCES] = new_inter
+            #app.config[PBFT_INSTANCES] = new_inter
             app.config[PENDING_PEERS][pending_quorum][index] = None
+            app.config[ACCEPTED_PEERS][str(joining_peer)] = True
+            print("Set app.config[accepted_peers][" + str(joining_peer) + "] = " + str(app.config[ACCEPTED_PEERS][str(joining_peer)]))
 
         print("setting size from " + str(app.config[NETWORK_SIZE]) + " to " + str(app.config[NETWORK_SIZE] + 1))
         app.config[NETWORK_SIZE] += 1
@@ -188,7 +198,7 @@ def add_routes(app):
         app.config[QUORUMS][quorum_id_b] = []
         return ROUTE_EXECUTED_CORRECTLY
 
-    @app.route('/check_pending_assigned/<check_quorum>/<new_quorum>', methods=['POST'])
+    @app.route('/check_pending_endpoint/<check_quorum>/<new_quorum>', methods=['POST'])
     def check_pending_endpoint(check_quorum=None, new_quorum=None):
         inter = app.config[PBFT_INSTANCES]
         id_a = inter.committee_id_a
@@ -198,11 +208,11 @@ def add_routes(app):
 
         result = False
 
-        if (check_quorum == id_a and new_quorum == id_b) or (check_quorum == id_b and new_quorum == id_a):
-            print('CPA - quorum already added')
+        if (check_quorum == id_a and new_quorum == id_b) or (check_quorum == id_b and new_quorum == id_a) or (inter.instance_a.catching_up) or (inter.instance_b.catching_up):
+            print('CPE - quorum already added')
             result = True
         else:
-            print("CPA - quorum was not found")
+            print("CPE - quorum was not found")
         
         res_json = json.loads(json.dumps({
             "assigned": result
@@ -291,15 +301,6 @@ def add_routes(app):
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
-
-    def refresh_config(type=None, app=None):
-        if app.config[type]:
-            res_json = json.loads(json.dumps({
-                type: app.config[type]
-            }))
-            return res_json
-        else:
-            return ROUTE_EXECUTION_FAILED
 
     @app.route('/refresh_config/', methods=['POST'])
     def refresh_config_endpoint(type=None):

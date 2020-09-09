@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, PENDING_PEERS
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, PENDING_PEERS, TCP_IP
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
@@ -89,6 +89,7 @@ def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
 
     committee_ips = [p.ip() for p in peers]
+    
     for p in peers:
         p.join_sawtooth(committee_ips)
 
@@ -154,7 +155,7 @@ def join_live_network(reference_peer):
     url = "http://localhost:{port}/join_queue/".format(port=reference_peer.port)
     requests.post(url, json=port_json)
 
-    reference_peer.notify_neighbors_pending_peer()
+    reference_peer.notify_neighbors_pending_peer(new_peer.port)
 
     return new_peer
 
@@ -168,6 +169,7 @@ def get_neighbors(quorum, network: map):
         if quorum == neighbor_membership[0]:
             neighbors.append({
                 API_IP: "localhost",
+                TCP_IP: network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].ip(quorum),
                 PORT: "{}".format(neighbor_peer_port),
                 QUORUM_ID: "{}".format(neighbor_membership[1])
             })
@@ -175,6 +177,7 @@ def get_neighbors(quorum, network: map):
         if quorum == neighbor_membership[1]:
             neighbors.append({
                 API_IP: "localhost",
+                TCP_IP: network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].ip(quorum),
                 PORT: "{}".format(neighbor_peer_port),
                 QUORUM_ID: "{}".format(neighbor_membership[0])
             })

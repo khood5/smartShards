@@ -1,6 +1,7 @@
 # keys for json values on various requests
 USER_KEY = 'user_key'
 VALIDATOR_KEY = 'validator_key'
+TCP_IP = 'tcp_ip'
 API_IP = 'ip_address'
 API_PORT = "api_port"
 DOCKER_IP = 'docker_ip_address'
@@ -16,5 +17,7 @@ ROUTE_EXECUTION_FAILED = "ERROR: {msg}"
 TRANSACTION_KEY = "key"
 TRANSACTION_VALUE = "value"
 PENDING_PEERS = "pending_peers"
+ACCEPTED_PEERS = "accepted_peers"
 REFRESH_TYPE = "refresh_type"
 NETWORK_SIZE = "network_size"
+BOOTSTRAP = "bootstrap"
