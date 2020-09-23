@@ -40,7 +40,8 @@ class SmartShardPeer:
         self.app = None
 
     def __del__(self):
-        del self.inter
+        if self.inter is not None:
+            del self.inter
         self.app.terminate()
         self.app.join()  # wait for app kill to fully complete
         del self.app
@@ -94,21 +95,22 @@ class SmartShardPeer:
         return True
 
     def refresh_config(self, type, port):
-        url = "http://localhost:{port}/refresh_config/".format(port=port)
-        refresh_json = json.loads(json.dumps({
-                REFRESH_TYPE: type
-        }))
-        recv_cfg = json.loads(requests.post(url, json=refresh_json).text)[type]
+        url = "http://localhost:{port}/refresh_config/{type}".format(port=port, type=type)
+        response = requests.post(url, json={})
+        response_txt = response.text
+        print("received response_txt " + response_txt)
+        recv_cfg = json.loads(response_txt)[type]
         self.app.api.config[type] = recv_cfg
         print("refreshed cfg type " + type + " to")
         print(recv_cfg)
+        return json.dumps(recv_cfg)
 
     def notify_neighbors_pending_peer(self, pending_port=None):
         self.refresh_config(QUORUMS, self.port)
         quorums = self.app.api.config[QUORUMS]
         self.refresh_config(PENDING_PEERS, self.port)
 
-        print(str(self.port) + " notifying neighbrs of a pending peer join")
+        print(str(self.port) + " notifying neighbors of a pending peer join")
         print(self.app.api.config[PENDING_PEERS])
 
 
