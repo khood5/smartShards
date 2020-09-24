@@ -5,7 +5,7 @@ from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, API_PORT, VALIDATO
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
 from src.structures import Transaction
-from src.util import refresh_config, get_pending_quorum, process_pending_quorums
+from src.util import get_cfg, get_pending_quorum, process_pending_quorums, notify_neighbors_pending_peer
 from src.api.api_util import forward
 from flask import jsonify, request
 import requests
@@ -49,6 +49,7 @@ def add_routes(app):
         app.config[QUORUMS][quorum_id_b] = []
         return ROUTE_EXECUTED_CORRECTLY
 
+    # delete?
     @app.route('/check_pending_endpoint/<check_quorum>/<new_quorum>', methods=['POST'])
     def check_pending_endpoint(check_quorum=None, new_quorum=None):
         inter = app.config[PBFT_INSTANCES]
@@ -163,17 +164,23 @@ def add_routes(app):
 
     @app.route('/new_pending_peer/<peer_port>', methods=['POST'])
     def new_pending_peer(peer_port=None):
+        req = get_json(request, app)
+        already_notified = json.loads(req)["already_notified"]
+
+        self_port = str(app.config[API_PORT])
+
         print("[" + str(app.config[API_PORT]) + "] NPP received " + str(peer_port))
         print(app.config[PENDING_PEERS])
         pending_quorum, app.config = get_pending_quorum(app.config, peer_port)
 
         id_a = app.config[PBFT_INSTANCES].committee_id_a
         id_b = app.config[PBFT_INSTANCES].committee_id_b
+        
 
         self_neighbor_info_a = {
             API_IP: "localhost",
             TCP_IP: app.config[PBFT_INSTANCES].ip(id_a),
-            PORT:   app.config[API_PORT],
+            PORT:   self_port,
             QUORUM_ID: id_a,
             USER_KEY: app.config[PBFT_INSTANCES].user_key(id_a),
             VALIDATOR_KEY: app.config[PBFT_INSTANCES].val_key(id_a)
@@ -182,20 +189,21 @@ def add_routes(app):
         self_neighbor_info_b = {
             API_IP: "localhost",
             TCP_IP: app.config[PBFT_INSTANCES].ip(id_b),
-            PORT: app.config[API_PORT],
+            PORT: self_port,
             QUORUM_ID: id_b,
             USER_KEY: app.config[PBFT_INSTANCES].user_key(id_b),
             VALIDATOR_KEY: app.config[PBFT_INSTANCES].val_key(id_b)
         }
 
-        app.config = process_pending_quorums(app.config, pending_quorum, peer_port, self_neighbor_info_a, self_neighbor_info_b)
-        
+        try:
+            check = already_notified[self_port]
+        except KeyError:
+            already_notified[self_port] = True
+            app.config = process_pending_quorums(app.config, pending_quorum, peer_port, self_neighbor_info_a, self_neighbor_info_b)
+   
+        app.config = notify_neighbors_pending_peer(app.config, str(peer_port), already_notified)
 
-        res_json = json.loads(json.dumps({
-            "notifcation": pending_quorum
-        }))
-
-        return res_json
+        return ROUTE_EXECUTED_CORRECTLY
 
     # SmartShardPeer Joins a network mid-operation
     @app.route('/join_queue/', methods=['POST'])
@@ -210,10 +218,12 @@ def add_routes(app):
         id_a = app.config[PBFT_INSTANCES].committee_id_a
         id_b = app.config[PBFT_INSTANCES].committee_id_b
 
+        self_port = str(app.config[API_PORT])
+
         self_neighbor_info_a = {
             API_IP: "localhost",
             TCP_IP: app.config[PBFT_INSTANCES].ip(id_a),
-            PORT:   app.config[API_PORT],
+            PORT:   self_port,
             QUORUM_ID: id_a,
             USER_KEY: app.config[PBFT_INSTANCES].user_key(id_a),
             VALIDATOR_KEY: app.config[PBFT_INSTANCES].val_key(id_a)
@@ -222,7 +232,7 @@ def add_routes(app):
         self_neighbor_info_b = {
             API_IP: "localhost",
             TCP_IP: app.config[PBFT_INSTANCES].ip(id_b),
-            PORT: app.config[API_PORT],
+            PORT: self_port,
             QUORUM_ID: id_b,
             USER_KEY: app.config[PBFT_INSTANCES].user_key(id_b),
             VALIDATOR_KEY: app.config[PBFT_INSTANCES].val_key(id_b)
@@ -262,12 +272,14 @@ def add_routes(app):
 
     @app.route('/refresh_config/<type>', methods=['POST'])
     def refresh_config_endpoint(type=None):
-        req = get_json(request, app)
-      
-        #print("RCE called with type " + type)
-        #print(app.config)
+        result = None
 
-        return refresh_config(type, app.config)
+        try:
+            result = app.config[type]
+        except KeyError:
+            pass
+
+        return result
 
     # remove neighbor from API after it leaves
     @app.route('/remove/<remove_port>', methods=['POST'])

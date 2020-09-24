@@ -145,7 +145,8 @@ def join_live_network(reference_peer):
     print("JLN RUNNING")
     from src.SmartShardPeer import SmartShardPeer
 
-    reference_peer.refresh_config(QUORUMS, reference_peer.port)
+    reference_peer.app.api.config = refresh_config_remote(reference_peer.app.api.config, QUORUMS, reference_peer.port)
+
     port_number = find_free_port()
     print("JLN GENERATED PORT " + str(port_number))
     #a = SawtoothContainer()
@@ -159,16 +160,20 @@ def join_live_network(reference_peer):
     url = "http://localhost:{port}/join_queue/".format(port=reference_peer.port)
     requests.post(url, json=port_json)
 
-    reference_peer.notify_neighbors_pending_peer(new_peer.port)
+    #reference_peer.app.api.config = notify_neighbors_pending_peer(reference_peer.app.api.config, new_peer.port)
 
-    return new_peer
+    return new_peer, reference_peer.app.api.config
 
 
 def get_neighbors(quorum, network: map):
     neighbors = []
     for neighbor_peer_port in network:
-        neighbor_membership = [network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_a,
-                               network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_b]
+        neighbor_membership = None
+        try:
+            neighbor_membership = [network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_a,
+                                network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_b]
+        except KeyError:
+            print("huh " + str(network[neighbor_peer_port].app.api.config))
 
         if quorum == neighbor_membership[0]:
             neighbors.append({
@@ -192,93 +197,124 @@ def get_neighbors(quorum, network: map):
 
     return neighbors
 
-def refresh_config(type=None, config=None):
-    print("running refresh_config type " + type + " with config ")
-    print(config)
+def get_cfg(type=None, config=None):
     if config[type] is not None:
-        print("found the type")
-        res_json = json.dumps({
-            type: config[type]
-        })
-        print("refresh returning " + str(config[type]))
-        print(res_json)
-        return res_json
+        return config[type]
     else:
-        print("refresh execution failed")
         return ROUTE_EXECUTION_FAILED
 
-def check_pending_assigned(config, check_quorum=None, new_quorum=None, port=None, self_a=None, self_b=None):
-    if check_quorum == new_quorum:
-        return False, config
-    if (config[PBFT_INSTANCES].committee_id_a == new_quorum and config[PBFT_INSTANCES].committee_id_b == check_quorum) or (config[PBFT_INSTANCES].committee_id_a == check_quorum and config[PBFT_INSTANCES].committee_id_b == new_quorum):
-        return True, config
+def refresh_config_remote(config, type, port):
+    #print("CFG AT START - C  - " + str(config))
+    url = "http://localhost:{port}/refresh_config/{type}".format(port=port, type=type)
+    response = requests.post(url, json={})
+    response_txt = response.text
+
+    recv_cfg = json.loads(response_txt)
+    config[type] = recv_cfg
+    print("refreshed cfg type " + type)
+    #print(recv_cfg)
+
+    #print("CFG AT END - D  - " + str(config))
+    return config
+
+def notify_neighbors_pending_peer(config, pending_port=None, already_notified={}):
+    try:
+        check = already_notified[str(config[API_PORT])]
+        print(str(config[API_PORT]) + " has already been notified, skipping FROM TOP")
+        return config
+    except KeyError:
+        pass
+
+    #print("CFG AT START - A  - " + str(config))
+    str_port = str(config[API_PORT])
+    config = refresh_config_remote(config, QUORUMS, str_port)
+    config = refresh_config_remote(config, PENDING_PEERS, str_port)
 
     quorums = config[QUORUMS]
-    #self.refresh_config(PENDING_PEERS, self.port)
+
+    print("[" + str_port + "] Pending peer joining: " + str(pending_port) + " -> " + str(config[PENDING_PEERS]))
 
     for committee_id in quorums:
         for neighbor in quorums[committee_id]:
-            neighbor_ip = neighbor[API_IP]
             neighbor_port = neighbor[PORT]
 
-            url = "http://{address}:{port}/check_pending_endpoint/{check_quorum}/{new_quorum}".format(address=neighbor_ip, port=neighbor_port, new_quorum=new_quorum, check_quorum=check_quorum)
-            pending_remotely = json.loads(requests.post(url, json={}).text)["assigned"]
-            accepted_locally = False
-                
-            print("current accepted peers:")
-            print(config[ACCEPTED_PEERS])
-
-            accepted_remotely = False
-            accepted_list = None
-
-            try: 
-                accepted_list = config[ACCEPTED_PEERS][new_quorum]
-                print("1 step CPA")
-            except KeyError:
-                try:
-                    config[ACCEPTED_PEERS][new_quorum] = {}
-                    print("2 step CPA")
-                except KeyError:
-                    return ROUTE_EXECUTION_FAILED, config
-
-            
-            accepted_list = config[ACCEPTED_PEERS][new_quorum]
-
             try:
-                if len(accepted_list[new_quorum][check_quorum]) > 0:
-                    accepted_remotely = True
-                    print("this quorum combination was already solved by")
-                    print(accepted_list[new_quorum][check_quorum])
+                check = already_notified[neighbor_port]
+                print(str(neighbor_port) + " has already been notified, skipping")
+                continue
             except KeyError:
-                for accepted_quorum in accepted_list: 
-                    if (config[PBFT_INSTANCES].committee_id_a == accepted_quorum and config[PBFT_INSTANCES].committee_id_b == new_quorum) or (config[PBFT_INSTANCES].committee_id_a == new_quorum and config[PBFT_INSTANCES].committee_id_b == accepted_quorum):
-                        print(str(new_quorum) + " , " + str(accepted_quorum) + " already active on us")
-                        continue
-                    else:
-                        print(str(new_quorum) + " , " + str(accepted_quorum) + " not active on us. Our committees are ")
-                        print([config[PBFT_INSTANCES].committee_id_a, config[PBFT_INSTANCES].committee_id_b])
-                        print("we were checking for ")
-                        print([accepted_quorum, new_quorum])
-                    for accepted_port in accepted_list[accepted_quorum]:
-                        print("accepted port: " + str(accepted_port))
-                        if (accepted_list[accepted_quorum][accepted_port] == True):
-                            print(str(accepted_port) + " was found ")
-                            accepted_remotely = True
-                            config = activate_new_quorum(config, str(accepted_port), accepted_quorum, new_quorum, self_a, self_b, False)
-
-            try:
-                accepted_locally = accepted_list[port]
-            except:
                 pass
 
-            print("found pending_remotely " + str(pending_remotely))
-            print("found accepted_locally " + str(accepted_locally))
-            print("found accepted_remotely " + str(accepted_remotely))
-            if pending_remotely == True or accepted_locally == True or accepted_remotely == True:
-                print("IN CPAROUTE RETURN TRUE")
-                return True, config
-    print("IN CPAROUTE RETURN FALSE")
-    return False, config
+            neighbor_ip = neighbor[API_IP]
+
+            url = "http://{address}:{port}/new_pending_peer/{pending_port}".format(pending_port=pending_port,
+                                                                        address=neighbor_ip, port=neighbor_port)
+            ignore_json = json.dumps({"already_notified": already_notified})
+            notify_neighbor(url, ignore_json)
+
+    #print("CFG AT END - B  - " + str(config))
+    return config
+
+def notify_neighbor(url, json={}):
+    attempts = 0
+    while attempts < 5:
+        attempts += 1
+        try:
+            requests.post(url, json=json)
+        except requests.exceptions.ConnectionError:
+            time.sleep(5)
+            continue
+
+        break
+
+        if attempts > 5:
+            return False
+
+    return True
+
+
+def check_pending_assigned(config, check_quorum=None, new_quorum=None, port=None, self_a=None, self_b=None):
+    if check_quorum == new_quorum:
+        print("IN CPAROUTE RETURN FALSE - EQUAL QUORUMS")
+        return True, config
+
+    accepted_list = None
+
+    try: 
+        accepted_list = config[ACCEPTED_PEERS][new_quorum][check_quorum]
+        print("1 step CPA")
+    except KeyError:
+        try:
+            config[ACCEPTED_PEERS][new_quorum][check_quorum] = {}
+            print("2 step CPA")
+        except KeyError:
+            try:
+                config[ACCEPTED_PEERS][new_quorum] = {}
+                config[ACCEPTED_PEERS][new_quorum][check_quorum] = {}
+                print("3 step CPA")
+            except KeyError:
+                return ROUTE_EXECUTION_FAILED, config
+
+    accepted_list = config[ACCEPTED_PEERS][new_quorum][check_quorum]
+    pending_list = config[PENDING_PEERS][new_quorum]
+
+    port_activated_remotely = (port in accepted_list)
+    port_pending = (port in pending_list)
+
+    occupied = False
+
+    if (port_activated_remotely and port_pending):
+        # Port has been activated on another peer but we have not activated it yet
+        config = activate_new_quorum(config, port, check_quorum, new_quorum, self_a, self_b, False)
+        occupied = True
+    elif (port_activated_remotely and not port_pending):
+        # Port has been activated on this node
+        occupied = True
+
+    # No node has activated this port
+        
+    print("CPA ROUTE RETURNING " + str(occupied))
+    return occupied, config
 
 def get_pending_quorum(config, joining_port):
     pending_quorum = None
@@ -374,6 +410,13 @@ def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, ge
                                 print(e)
                                 return ROUTE_EXECUTION_FAILED.format(msg="") + "Peer was unable to activate new quorum \n\n\n{}".format(e)
                     config[ACCEPTED_PEERS][str_pending][str_index][port] = True
+                    
+                    try:
+                        config[PENDING_PEERS][str_pending].remove(port)
+                        print("removing from qu")
+                    except ValueError:
+                        print("not found in pending, remove skipped")
+                        pass
                 
                 if neighbor[QUORUM_ID] != str_index:
                     neighbors[quorum_add].append(neighbor)
@@ -382,7 +425,9 @@ def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, ge
     assert(len(config[QUORUMS]) == 2)
 
     print("Calculated neighbors for new intersection at (" + str_index + ", " + str_pending + ")\n")
-    print(neighbors)
+    #print(neighbors)
+
+    #print("go here")
 
     start_json = json.loads(json.dumps({
         "id_a": str_index,
@@ -409,94 +454,135 @@ def process_pending_quorums(config, pending_quorum, joining_port, self_a, self_b
     print(config[PENDING_PEERS][pending_quorum]) 
     print(str(pending_quorum))
 
-    if len(config[PENDING_PEERS][pending_quorum]) >= int(pending_quorum):
-        for joining_peer in config[PENDING_PEERS][pending_quorum]:
-            if joining_peer is None:
-                print("found no JP")
-                continue
-            if config[PENDING_PEERS][pending_quorum] is None:
-                print("JP was neutralized")
-                continue
-            
-            index = None
-            first_run = True
-            accepted_locally = False
+
+    # Number of new quorums made so far
+    already_accepted = 0
+
+    # Number of peers we have added
+    pending_added = 0
+
+    try:
+        already_accepted = len(config[ACCEPTED_PEERS][pending_quorum])
+    except KeyError:
+        pass
+
+    quorums_needed = int(pending_quorum) - already_accepted
+
+
+    print("FOUND ALREADY_ACCEPTED " + str(already_accepted))
+    print("FOUND QUORUMS_NEEDED " + str(quorums_needed))
+
+    if len(config[PENDING_PEERS][pending_quorum]) >= quorums_needed:
+
+        print("Found enough pending peers to make new quorum!")
+        print("Attempting to make quorum with " + pending_quorum)
+
+
+        pending_pos = 0
+        offset = 0
+
+        while (pending_pos < len(config[PENDING_PEERS][pending_quorum])):
+            check_pos = pending_pos + offset
+            str_pos = str(check_pos)
+            joining_peer = config[PENDING_PEERS][pending_quorum][pending_pos]
 
             str_joining = str(joining_peer)
 
-            config[ACCEPTED_PEERS] = json.loads(refresh_config(ACCEPTED_PEERS, config))[ACCEPTED_PEERS]
+            print(str(config[API_PORT]) + " trying port: " + str_joining)
+
+            accepted_locally = False
+
+            #config = get_cfg(ACCEPTED_PEERS, config)
 
             print("checking accepted peers")
-            print(config[ACCEPTED_PEERS])
-
-            pending_for_quorum = None
 
             try:
-                pending_for_quorum = config[PENDING_PEERS][pending_quorum]
+                print(config[ACCEPTED_PEERS])
+            except KeyError as e:
+                print("Error printing accepted peers")
+                print(e)
+                print(config)
+
+            try:
+                already_accepted = len(config[ACCEPTED_PEERS][pending_quorum]) + pending_added
+                print("already_accepted updated to " + str(already_accepted))
+            except KeyError:
+                already_accepted = pending_added
+            
+            try:
+                check = config[PENDING_PEERS][pending_quorum]
                 print("no cfgerr")
             except KeyError as err:
                 print("corrected config err")
                 print(err)
 
-                if first_run == True:
-                    config[PENDING_PEERS][pending_quorum] = []
-                    config[PENDING_PEERS][pending_quorum].append(joining_peer)
-                    pending_for_quorum = config[PENDING_PEERS][pending_quorum]
-                    first_run = False
+                config[PENDING_PEERS][pending_quorum] = []
+                config[PENDING_PEERS][pending_quorum].append(str_joining)
 
-            try: 
-                index = config[PENDING_PEERS][pending_quorum].index(joining_peer)
-            except ValueError as err:
-                print(err)
-                print("valueerror for index find")
-                config[PENDING_PEERS][pending_quorum].append(joining_peer)
-                index = config[PENDING_PEERS][pending_quorum].index(joining_peer)
+
+            str_pending = str(pending_quorum)
+
+            # Check if the port has been assigned to another intersecting quorum
+            try:
+                all_accepted_quorums = config[ACCEPTED_PEERS][str_pending]
+                for quorum in all_accepted_quorums:
+                    try:
+                        port_in_different_quorum = all_accepted_quorums[quorum][str_joining]
+                        if port_in_different_quorum:
+                            offset += 1
+                            continue
+                    except KeyError:
+                        pass
+            except KeyError:
+                pass
 
             try:
-                accepted_locally = config[ACCEPTED_PEERS][str(pending_quorum)][str(index)][str_joining]
-                print("Found config[accepted_peers][" + str_joining + "] = " + str(config[ACCEPTED_PEERS][str(pending_quorum)][str_joining]))
+                accepted_locally = config[ACCEPTED_PEERS][str_pending][str_pos][str_joining]
+                print("Found config[accepted_peers][" + str_pending + "][" + str_pos + "][" + str_joining + "] = " + str(config[ACCEPTED_PEERS][str_pending][str_pos][str_joining]))
+                print("Quorum " + str_pos + "\t" + str_pending + " was already assigned - FULLY")
+                
+                if accepted_locally == True:
+                    offset += 1
+                    continue
             except KeyError as err:
-                print("node not marked accepted yet")
-                print(err)
-                print(config[ACCEPTED_PEERS])
-
+                try: 
+                    check = (len(config[ACCEPTED_PEERS][str_pending][str_pos]) > 0)
+                    print("Quorum " + str_pos + "\t" + str_pending + " was already assigned.")
+                    offset += 1
+                    continue
+                except KeyError:
+                    pass
+                
             print("after checks, cfg pendingpeers is")
             print(config[PENDING_PEERS])
-
-            str_index = str(index)
-            str_pending = str(pending_quorum)
     
-            if str_index == str_pending:
-                print("index and pending match, skipping")
+            if str_pos == str_pending:
+                offset += 1
                 continue
-            print("NET SIZE " + str(config[NETWORK_SIZE]) + " index " + str_index + " PQ " + str_pending)
 
-            found, config = check_pending_assigned(config, str_index, str_pending, str_joining, self_a, self_b)
+            print("NET SIZE\t" + str(config[NETWORK_SIZE]) + "\tstr_pos\t" + str_pos + "\tPQ\t" + str_pending + "\tOffset\t" + str(offset))
+
+            found, config = check_pending_assigned(config, str_pos, str_pending, str_joining, self_a, self_b)
             
             if accepted_locally == True or found == True:
-                print("WAS ALREADY FOUND - SKIPPING")
+                offset += 1
                 continue
 
-            config = activate_new_quorum(config, str_joining, str_index, str_pending, self_a, self_b, True)
-            print("before attempt delete in activate")
-            print(config[PENDING_PEERS])
+            config = activate_new_quorum(config, str_joining, str_pos, str_pending, self_a, self_b, True)
 
-            if str_joining in config[PENDING_PEERS][str_pending]:
-                print("checking for port " + str_joining)
-                print("pending check " + str(len(config[PENDING_PEERS][str_pending])) + " | " + str(config[NETWORK_SIZE]))
+            if str_joining not in config[PENDING_PEERS][str_pending]:
+                pending_added += 1
 
-                if len(config[PENDING_PEERS][str_pending]) >= config[NETWORK_SIZE]:
-                    
-                    add = 1 + len(config[PENDING_PEERS][str_pending]) - int(str_pending)
-                    config[NETWORK_SIZE] += add
-                    print("size is now " + str(config[NETWORK_SIZE]) + ", increased by " + str(add))
-
-                    config[PENDING_PEERS][str_pending].remove(str_joining)
-
-                    #del config[PENDING_PEERS][str_pending]
+            pending_pos += 1
             
-            print("Set config[accepted_peers][" + str_pending + "][" + str_index + "][" + str_joining + "] = " + str(config[ACCEPTED_PEERS][str_pending][str_index][str_joining]))
-            
+    else:
+        print("not enough pending peers for a new quorum!")
+        print("Pending peers: " + str(len(config[PENDING_PEERS][pending_quorum])))
+        print(config[PENDING_PEERS][pending_quorum])
+
+        print("Peers needed for new quorum: " + str(quorums_needed))
+
+    config = notify_neighbors_pending_peer(config, str(joining_port))
     return config
 
 
@@ -539,6 +625,6 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
 
-        peers[port].refresh_config(QUORUMS, port)
+        peers[port].app.api.config = refresh_config_remote(peers[port].app.api.config, QUORUMS, port)
 
     return peers

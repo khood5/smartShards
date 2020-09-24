@@ -237,8 +237,6 @@ class TestSmartShard(unittest.TestCase):
             random.seed(time.gmtime())
             rand_port = random.choice(list(peers.keys()))
             rand_peer = peers[rand_port]
-            rand_peer_pid = rand_peer.pid()
-            rand_peer_quorums = [rand_peer.committee_id_a(), rand_peer.committee_id_b()]
 
-            new_peer = join_live_network(rand_peer)
+            new_peer, rand_peer.app.api.config = join_live_network(rand_peer)
             new_peers.append(new_peer)

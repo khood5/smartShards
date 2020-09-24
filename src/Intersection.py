@@ -78,8 +78,6 @@ class Intersection:
         elif str(quorum_id) == self.committee_id_b:
             return self.instance_b.ip()
         else:
-            import traceback
-            traceback.print_stack()
             intersection_logger.error('PEER: ip request for unknown quorum, '
                                       'known quorums:{known} requested quorum:{unknown}'.format(
                                         known=[self.committee_id_a, self.committee_id_b],

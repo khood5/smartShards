@@ -4,6 +4,7 @@ from src.api import create_app
 from src.api.constants import PBFT_INSTANCES, QUORUMS, NEIGHBOURS, API_IP, PORT, DOCKER_IP, QUORUM_ID, API_PORT, REFRESH_TYPE, PENDING_PEERS
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
+from src.util import refresh_config_remote
 import logging
 import logging.handlers
 import multiprocessing as mp
@@ -40,6 +41,9 @@ class SmartShardPeer:
         self.app = None
 
     def __del__(self):
+        import traceback
+        traceback.print_stack()
+
         if self.inter is not None:
             del self.inter
         self.app.terminate()
@@ -76,60 +80,10 @@ class SmartShardPeer:
     def peer_port(self):
         return self.port
 
-    def notify_neighbor(self, url, json={}):
-        attempts = 0
-        while attempts < 5:
-            attempts += 1
-            try:
-                requests.post(url, json=json)
-            except requests.exceptions.ConnectionError:
-                logging.error("SmartShardPeer PID " + str(self.pid()) + ", port " + str(self.port) + " failed in notify_neighbor with URL " + url)
-                time.sleep(5)
-                continue
-
-            break
-
-            if attempts > 5:
-                return False
-
-        return True
-
-    def refresh_config(self, type, port):
-        url = "http://localhost:{port}/refresh_config/{type}".format(port=port, type=type)
-        response = requests.post(url, json={})
-        response_txt = response.text
-        print("received response_txt " + response_txt)
-        recv_cfg = json.loads(response_txt)[type]
-        self.app.api.config[type] = recv_cfg
-        print("refreshed cfg type " + type + " to")
-        print(recv_cfg)
-        return json.dumps(recv_cfg)
-
-    def notify_neighbors_pending_peer(self, pending_port=None):
-        self.refresh_config(QUORUMS, self.port)
-        quorums = self.app.api.config[QUORUMS]
-        self.refresh_config(PENDING_PEERS, self.port)
-
-        print(str(self.port) + " notifying neighbors of a pending peer join")
-        print(self.app.api.config[PENDING_PEERS])
-
-
-        for committee_id in quorums:
-            for neighbor in quorums[committee_id]:
-                neighbor_ip = neighbor[API_IP]
-                neighbor_port = neighbor[PORT]
-                neighbor_quorum = neighbor[QUORUM_ID]
-
-                url = "http://{address}:{port}/new_pending_peer/{pending_port}".format(pending_port=pending_port,
-                                                                          address=neighbor_ip, port=neighbor_port)
-                self.notify_neighbor(url)
-
-        logging.info(("PID " + str(self.pid()) + " on port:" + str(self.port) + " - successful pending neighbor notification."))
-
     # Leave the network cooperatively
     def leave(self):
         logging.info("API peer on port :" + str(self.port) + " attempting to cooperatively leave.")
-        self.refresh_config(QUORUMS, self.port)
+        self.app.api.config = refresh_config_remote(self.app.api.config, QUORUMS, self.port)
         quorums = self.app.api.config[QUORUMS]
         quorum_ids = list(quorums.keys())
 
