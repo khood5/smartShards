@@ -41,8 +41,8 @@ class SmartShardPeer:
         self.app = None
 
     def __del__(self):
-        import traceback
-        traceback.print_stack()
+        #import traceback
+        #traceback.print_stack()
 
         if self.inter is not None:
             del self.inter

@@ -1,6 +1,6 @@
 from flask import Flask
 from src.api.routes import add_routes
-from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS, PENDING_PEERS, ACCEPTED_PEERS
+from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS, PENDING_PEERS, ACCEPTED_PEERS, FINALIZED_PEERS
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 
 
@@ -18,6 +18,7 @@ def create_app(instances=None):
     new_app.config[QUORUMS] = {}
     new_app.config[PENDING_PEERS] = {}
     new_app.config[ACCEPTED_PEERS] = {}
+    new_app.config[FINALIZED_PEERS] = {}
 
     add_routes(new_app)
 

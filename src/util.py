@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, PENDING_PEERS, TCP_IP, USER_KEY, VALIDATOR_KEY, NETWORK_SIZE, ACCEPTED_PEERS, PENDING_PEERS, API_PORT
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, PENDING_PEERS, TCP_IP, USER_KEY, VALIDATOR_KEY, NETWORK_SIZE, ACCEPTED_PEERS, PENDING_PEERS, API_PORT, FINALIZED_PEERS
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
@@ -272,50 +272,6 @@ def notify_neighbor(url, json={}):
 
     return True
 
-
-def check_pending_assigned(config, check_quorum=None, new_quorum=None, port=None, self_a=None, self_b=None):
-    if check_quorum == new_quorum:
-        print("IN CPAROUTE RETURN FALSE - EQUAL QUORUMS")
-        return True, config
-
-    accepted_list = None
-
-    try: 
-        accepted_list = config[ACCEPTED_PEERS][new_quorum][check_quorum]
-        print("1 step CPA")
-    except KeyError:
-        try:
-            config[ACCEPTED_PEERS][new_quorum][check_quorum] = {}
-            print("2 step CPA")
-        except KeyError:
-            try:
-                config[ACCEPTED_PEERS][new_quorum] = {}
-                config[ACCEPTED_PEERS][new_quorum][check_quorum] = {}
-                print("3 step CPA")
-            except KeyError:
-                return ROUTE_EXECUTION_FAILED, config
-
-    accepted_list = config[ACCEPTED_PEERS][new_quorum][check_quorum]
-    pending_list = config[PENDING_PEERS][new_quorum]
-
-    port_activated_remotely = (port in accepted_list)
-    port_pending = (port in pending_list)
-
-    occupied = False
-
-    if (port_activated_remotely and port_pending):
-        # Port has been activated on another peer but we have not activated it yet
-        config = activate_new_quorum(config, port, check_quorum, new_quorum, self_a, self_b, False)
-        occupied = True
-    elif (port_activated_remotely and not port_pending):
-        # Port has been activated on this node
-        occupied = True
-
-    # No node has activated this port
-        
-    print("CPA ROUTE RETURNING " + str(occupied))
-    return occupied, config
-
 def get_pending_quorum(config, joining_port):
     pending_quorum = None
 
@@ -370,6 +326,8 @@ def get_pending_quorum(config, joining_port):
     return pending_quorum, config
 
 def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, genesis):
+    #import traceback
+    #traceback.print_stack()
     print("[" + str(config[API_PORT]) + "] Peer on port " + port + " will be member of quorums " + str_index + ", " + str_pending)
 
     neighbors = {}
@@ -380,23 +338,31 @@ def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, ge
     for quorum in config[QUORUMS]:
         self_added = False
         for neighbor in config[QUORUMS][quorum]:
+
+            # Notify each neighbor of the new live peer
             url = "http://localhost:{remote_port}/new_live_peer/{new_port}/{check_quorum}/{new_quorum}".format(remote_port=neighbor[PORT], new_port=port, check_quorum=str_index, new_quorum=str_pending)
             requests.post(url, json={})
 
+            # Skip nodes who are in the same quorum as joining peer
             if quorum == neighbor[QUORUM_ID]:
                 continue
 
             try:
                 neighbors[quorum_add].append(neighbor)
             except KeyError:
+                # This quorum's list has not been created yet; create it
                 neighbors[quorum_add] = []
                 
+                # Only add neighbor information for the sending node once per quorum
                 if not self_added:
+                    # Don't add neighbor information for the sending node
                     if self_a[QUORUM_ID] != str_index:
                         neighbors[quorum_add].append(self_a)
                     if self_b[QUORUM_ID] != str_index:
                         neighbors[quorum_add].append(self_b)
                     self_added = True
+
+                    # Add node to accepted list
                     try:
                         config[ACCEPTED_PEERS][str_pending][str_index][port] = True
                     except KeyError:
@@ -405,12 +371,14 @@ def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, ge
                         except KeyError:
                             try:
                                 config[ACCEPTED_PEERS][str_pending] = {}
+                                config[ACCEPTED_PEERS][str_pending][str_index] = {}
                             except KeyError as e:
                                 print("Peer was unable to activate new quorum")
                                 print(e)
                                 return ROUTE_EXECUTION_FAILED.format(msg="") + "Peer was unable to activate new quorum \n\n\n{}".format(e)
                     config[ACCEPTED_PEERS][str_pending][str_index][port] = True
-                    
+
+                    # Remove accepted node from the pending list
                     try:
                         config[PENDING_PEERS][str_pending].remove(port)
                         print("removing from qu")
@@ -424,25 +392,155 @@ def activate_new_quorum(config, port, str_index, str_pending, self_a, self_b, ge
         quorum_add = next_quorum
     assert(len(config[QUORUMS]) == 2)
 
-    print("Calculated neighbors for new intersection at (" + str_index + ", " + str_pending + ")\n")
-    #print(neighbors)
+    print("Calculated new intersection at (" + str_index + ", " + str_pending + ")\n")
 
-    #print("go here")
+    config[FINALIZED_PEERS][port] = [str_index, str_pending]
 
-    start_json = json.loads(json.dumps({
-        "id_a": str_index,
-        "id_b": str_pending,
-        "neighbors": neighbors,
-        "genesis": genesis
-    }))
-    url = "http://localhost:{port}/spin_up_intersection/".format(port=port)
-    requests.post(url, json=start_json)
+    # There are enough accepted peers to spin up an intersection
+    if len(config[ACCEPTED_PEERS][str_pending][str_index]) >= int(str_pending):
+        config[NETWORK_SIZE] += 1
+
+        start_json = json.loads(json.dumps({
+            "id_a": str_index,
+            "id_b": str_pending,
+            "neighbors": neighbors,
+            "genesis": genesis
+        }))
+        url = "http://localhost:{port}/spin_up_intersection/".format(port=port)
+        requests.post(url, json=start_json)
     
     return config
 
+def pending_quorum_loop(config, pending_pos, pending_quorum, offset, intersections_made, self_a, self_b):
+    str_pending = str(pending_quorum)
+    num_pending = int(pending_quorum)
+    adj_pos = offset - pending_pos
+    joining_peer = None
+    
+    try:
+        joining_peer = config[PENDING_PEERS][pending_quorum][adj_pos]
+    except IndexError as err:
+        try:
+            check = config[PENDING_PEERS][pending_quorum]
+        except IndexError as err:
+            config[PENDING_PEERS][pending_quorum] = {}
+            #config[PENDING_PEERS][pending_quorum][adj_pos] = 
+    pending_port = str(joining_peer)
+
+    str_pos = str(adj_pos)
+    str_raw_pos = str(pending_pos)
+
+    print(str(config[API_PORT]) + " trying port: " + pending_port + "\t" + str_raw_pos + "\t" + str_pending + "\t(offset is " + str_pos + ")")
+
+    # Out of range
+    if adj_pos >= num_pending:
+        print("NODE OUT OF RANGE, SKIPPING")
+        offset -= (1 + (adj_pos - num_pending))
+        return config, offset, intersections_made
+
+    print("checking accepted peers")
+    print(config[ACCEPTED_PEERS])
+
+    if intersections_made < num_pending:
+        try:
+            all_accepted_quorums = config[ACCEPTED_PEERS][str_pending].copy()
+            for quorum in all_accepted_quorums:
+                check = []
+                try:
+                    check = config[FINALIZED_PEERS][str(pending_port)]
+                    a = check[0]
+                    b = check[1]
+
+                except IndexError as e:
+                    try:
+                        if quorum == str_raw_pos:
+                            print("QUORUM ALREADY ASSIGNED, SKIPPING")
+
+                            correct_port = str(next(iter(all_accepted_quorums[quorum])))
+                            intersections_made += 1
+                            offset += 1
+
+                            config = activate_new_quorum(config, correct_port, str_raw_pos, str_pending, self_a, self_b, False)
+                            
+                            return config, offset, intersections_made
+                        port_in_different_quorum = all_accepted_quorums[quorum][pending_port]
+                        if port_in_different_quorum:
+                            print("NODE ACCEPTED IN ANOTHER QUORUM, SKIPPING")
+                            offset += 1
+                            return config, offset, intersections_made
+                    except KeyError:
+                        pass
+                    
+                if ((check[0] == quorum) and (check[1] == str_pending)):
+                    print("MATCHED CASE")
+                    offset += 1
+                    return config, offset, intersections_made
+                else:
+                    print("match failed.")
+                    print(config[FINALIZED_PEERS])
+                    print(quorum)
+                    print(str_pending)
+
+        except KeyError:
+            pass
+
+        try:
+            # Check if node has been assigned to this quorum aleady
+            accepted_locally = config[ACCEPTED_PEERS][str_pending][str_raw_pos][pending_port]
+            print("Found config[accepted_peers][" + str_pending + "][" + str_raw_pos + "][" + pending_port + "] = " + str(config[ACCEPTED_PEERS][str_pending][str_raw_pos][pending_port]))
+            print("NODE ALREADY ASSIGNED IN THIS QUORUM, SKIPPING")
+
+            try:
+                config[PENDING_PEERS][pending_quorum].remove(pending_port)
+            except ValueError:
+                pass
+
+            offset += 1
+            return config, offset, intersections_made
+
+        except KeyError as err:
+            try: 
+                check = (config[ACCEPTED_PEERS][str_pending][str_raw_pos])
+            except KeyError as err:
+                try:
+                    check = (config[ACCEPTED_PEERS][str_pending])
+                except KeyError as err:
+                    pass
+                config[ACCEPTED_PEERS][str_pending] = {}
+                config[ACCEPTED_PEERS][str_pending][str_raw_pos] = {}
+                #continue
+            except KeyError:
+                pass
+
+        print("[" + str(config[API_PORT]) + "] Before CPA with stats:\nStrPos:\t" + str_pos + "\tPQ:\t" + str_pending + "\toffset:\t" + str(offset) + "\nNetwork size: " + str(config[NETWORK_SIZE]) + "\tPending\t" + str(config[PENDING_PEERS]) + "\tAccepted\t" + str(config[ACCEPTED_PEERS]) + "\n")
+
+        #found, config = check_pending_assigned(config, str_raw_pos, str_pending, pending_port, self_a, self_b)
+
+        config = activate_new_quorum(config, pending_port, str_raw_pos, str_pending, self_a, self_b, True)
+
+        # Quorum activation caused an intersection spinup and the quorum is no longer in consideration
+        if pending_port not in config[PENDING_PEERS][str_pending]:
+            intersections_made += 1
+            offset += 1
+            print("SUCCESSFULLY SPUN UP INTERSECTION")
+    else:
+        for i in range(0, num_pending):
+            config = activate_new_quorum(config, pending_port, str(i), str_pending, self_a, self_b, False)
+    
+    pending_pos += offset
+
+    if intersections_made >= num_pending:
+        config[NETWORK_SIZE] += 1
+
+    print("[" + str(config[API_PORT]) + "] Left loop with stats:\nNetwork size: " + str(config[NETWORK_SIZE]) + "\tPending\t" + str(config[PENDING_PEERS]) + "\tAccepted\t" + str(config[ACCEPTED_PEERS]) + "\n")
+
+    return config, offset, intersections_made
 
 def process_pending_quorums(config, pending_quorum, joining_port, self_a, self_b):
+    str_pending = str(pending_quorum)
+    num_pending = int(pending_quorum)
 
+    # Check for valid quorum
     try:
         t = config[PENDING_PEERS][pending_quorum]
     except KeyError:
@@ -452,14 +550,13 @@ def process_pending_quorums(config, pending_quorum, joining_port, self_a, self_b
     config[PENDING_PEERS][pending_quorum].append(str(joining_port))
 
     print(config[PENDING_PEERS][pending_quorum]) 
-    print(str(pending_quorum))
-
+    print(str_pending)
 
     # Number of new quorums made so far
     already_accepted = 0
 
-    # Number of peers we have added
-    pending_added = 0
+    # Number of nodes we've spun up
+    intersections_made = 0
 
     try:
         already_accepted = len(config[ACCEPTED_PEERS][pending_quorum])
@@ -467,7 +564,6 @@ def process_pending_quorums(config, pending_quorum, joining_port, self_a, self_b
         pass
 
     quorums_needed = int(pending_quorum) - already_accepted
-
 
     print("FOUND ALREADY_ACCEPTED " + str(already_accepted))
     print("FOUND QUORUMS_NEEDED " + str(quorums_needed))
@@ -477,103 +573,13 @@ def process_pending_quorums(config, pending_quorum, joining_port, self_a, self_b
         print("Found enough pending peers to make new quorum!")
         print("Attempting to make quorum with " + pending_quorum)
 
-
         pending_pos = 0
         offset = 0
 
-        while (pending_pos < len(config[PENDING_PEERS][pending_quorum])):
-            check_pos = pending_pos + offset
-            str_pos = str(check_pos)
-            joining_peer = config[PENDING_PEERS][pending_quorum][pending_pos]
-
-            str_joining = str(joining_peer)
-
-            print(str(config[API_PORT]) + " trying port: " + str_joining)
-
-            accepted_locally = False
-
-            #config = get_cfg(ACCEPTED_PEERS, config)
-
-            print("checking accepted peers")
-
-            try:
-                print(config[ACCEPTED_PEERS])
-            except KeyError as e:
-                print("Error printing accepted peers")
-                print(e)
-                print(config)
-
-            try:
-                already_accepted = len(config[ACCEPTED_PEERS][pending_quorum]) + pending_added
-                print("already_accepted updated to " + str(already_accepted))
-            except KeyError:
-                already_accepted = pending_added
+        while (pending_pos < len(config[PENDING_PEERS][pending_quorum])) and (intersections_made < num_pending):
+            config, offset, intersections_made = pending_quorum_loop(config, pending_pos, pending_quorum, offset, intersections_made, self_a, self_b)
+            pending_pos += offset
             
-            try:
-                check = config[PENDING_PEERS][pending_quorum]
-                print("no cfgerr")
-            except KeyError as err:
-                print("corrected config err")
-                print(err)
-
-                config[PENDING_PEERS][pending_quorum] = []
-                config[PENDING_PEERS][pending_quorum].append(str_joining)
-
-
-            str_pending = str(pending_quorum)
-
-            # Check if the port has been assigned to another intersecting quorum
-            try:
-                all_accepted_quorums = config[ACCEPTED_PEERS][str_pending]
-                for quorum in all_accepted_quorums:
-                    try:
-                        port_in_different_quorum = all_accepted_quorums[quorum][str_joining]
-                        if port_in_different_quorum:
-                            offset += 1
-                            continue
-                    except KeyError:
-                        pass
-            except KeyError:
-                pass
-
-            try:
-                accepted_locally = config[ACCEPTED_PEERS][str_pending][str_pos][str_joining]
-                print("Found config[accepted_peers][" + str_pending + "][" + str_pos + "][" + str_joining + "] = " + str(config[ACCEPTED_PEERS][str_pending][str_pos][str_joining]))
-                print("Quorum " + str_pos + "\t" + str_pending + " was already assigned - FULLY")
-                
-                if accepted_locally == True:
-                    offset += 1
-                    continue
-            except KeyError as err:
-                try: 
-                    check = (len(config[ACCEPTED_PEERS][str_pending][str_pos]) > 0)
-                    print("Quorum " + str_pos + "\t" + str_pending + " was already assigned.")
-                    offset += 1
-                    continue
-                except KeyError:
-                    pass
-                
-            print("after checks, cfg pendingpeers is")
-            print(config[PENDING_PEERS])
-    
-            if str_pos == str_pending:
-                offset += 1
-                continue
-
-            print("NET SIZE\t" + str(config[NETWORK_SIZE]) + "\tstr_pos\t" + str_pos + "\tPQ\t" + str_pending + "\tOffset\t" + str(offset))
-
-            found, config = check_pending_assigned(config, str_pos, str_pending, str_joining, self_a, self_b)
-            
-            if accepted_locally == True or found == True:
-                offset += 1
-                continue
-
-            config = activate_new_quorum(config, str_joining, str_pos, str_pending, self_a, self_b, True)
-
-            if str_joining not in config[PENDING_PEERS][str_pending]:
-                pending_added += 1
-
-            pending_pos += 1
             
     else:
         print("not enough pending peers for a new quorum!")

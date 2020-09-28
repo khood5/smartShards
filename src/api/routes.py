@@ -131,7 +131,7 @@ def add_routes(app):
         
         app.config[ACCEPTED_PEERS][new_quorum][check_quorum][port] = True
 
-        print("NLP request executed for " + port)
+        print("[" + str(app.config[API_PORT]) + "] NLP request executed for " + port)
         
         return ROUTE_EXECUTED_CORRECTLY
 
@@ -199,7 +199,9 @@ def add_routes(app):
             check = already_notified[self_port]
         except KeyError:
             already_notified[self_port] = True
-            app.config = process_pending_quorums(app.config, pending_quorum, peer_port, self_neighbor_info_a, self_neighbor_info_b)
+
+            if pending_quorum != -1:
+                app.config = process_pending_quorums(app.config, pending_quorum, peer_port, self_neighbor_info_a, self_neighbor_info_b)
    
         app.config = notify_neighbors_pending_peer(app.config, str(peer_port), already_notified)
 
@@ -238,13 +240,10 @@ def add_routes(app):
             VALIDATOR_KEY: app.config[PBFT_INSTANCES].val_key(id_b)
         }
 
-        app.config = process_pending_quorums(app.config, pending_quorum, joining_port, self_neighbor_info_a, self_neighbor_info_b)
+        if pending_quorum != -1:
+            app.config = process_pending_quorums(app.config, pending_quorum, joining_port, self_neighbor_info_a, self_neighbor_info_b)
         
-        res_json = json.loads(json.dumps({
-            "notifcation": pending_quorum
-        }))
-
-        return res_json
+        return ROUTE_EXECUTED_CORRECTLY
 
     # adds neighbour info to API (does not add to sawtooth use join to join a peer to a network)
     @app.route('/add/<quorum_id>', methods=['POST'])
