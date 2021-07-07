@@ -71,4 +71,5 @@ export PYTHONPATH=$PYTHONPATH:$PWD
 echo "if you have not done so yet, run the following comands then reboot\n"
 echo "sudo groupadd docker; sudo usermod -aG docker $USER; newgrp docker"
 echo "then rerun setup.sh to continue setup"
+echo "for more details see https://docs.docker.com/engine/install/linux-postinstall/"
 
