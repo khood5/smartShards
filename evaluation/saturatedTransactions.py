@@ -13,10 +13,10 @@ from src.structures import Transaction
 from src.util import make_intersecting_committees_on_host
 
 #Defaults
-NUMBER_OF_TX_MIN = 8
-NUMBER_OF_TX_MAX = 56
-NUMBER_OF_COMMITTEES = 8
-INTERSECTION = 1
+NUMBER_OF_TX_MIN = 1
+NUMBER_OF_TX_MAX = 15
+NUMBER_OF_COMMITTEES = 2
+INTERSECTION = 7
 NUMBER_OF_EXPERIMENTS = 3
 OUTPUT_FILE = "TransactionSaturation.csv"
 
@@ -68,6 +68,7 @@ def run_experiment(peers: dict, number_of_transactions: int):
     print("Running", end='', flush=True)
     submitted_tx, totalSubmitted, amount_of_confirmedtx_per_5sec, amount_of_submittedtx_per_5sec, confirmedTXs, \
     number_of_submitted_tx  = {}, 0, [], [], [], 0
+    startSubFlag = 0
     committee_ids = [peers[p].committee_id_a() for p in peers]
     committee_ids.extend([peers[p].committee_id_b() for p in peers])
     committee_ids = list(dict.fromkeys(committee_ids))
@@ -81,8 +82,8 @@ def run_experiment(peers: dict, number_of_transactions: int):
             #time.time() > next_sub:
             #Gets localtime
             currentTime = time.localtime(time.time())
-            #Every 5 seconds starts a new time slot
-            if currentTime.tm_sec % 5 == 0:
+            #Every 10 seconds starts a new time slot and if submissions have started
+            if currentTime.tm_sec % 10 == 0 and startSubFlag == 1:
                 amount_of_submittedtx_per_5sec.append(number_of_submitted_tx)
                 number_of_submitted_tx = 0
                 amount_of_confirmedtx_per_5sec.append(len(confirmedTXs))
@@ -93,6 +94,7 @@ def run_experiment(peers: dict, number_of_transactions: int):
             totalSubmitted += 1
             submitted_tx[time.time()] = tx
             peerSelected = choice(peerList)
+            startSubFlag = 1
             #Forces the transaction to go to a different committee than the one selected
             #FIX KEYERROR for forced
             #KeyError eg. '4'. likely a problem with directly comparing committee ids and the quorum ids
@@ -104,6 +106,12 @@ def run_experiment(peers: dict, number_of_transactions: int):
             if time.time() % 30:
                 print(" .", end='', flush=True)
             check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
+    #ensures that all submitted and confirmed transactions are added to list
+    if number_of_submitted_tx != 0 or len(confirmedTXs) != 0:
+        amount_of_submittedtx_per_5sec.append(number_of_submitted_tx)
+        number_of_submitted_tx = 0
+        amount_of_confirmedtx_per_5sec.append(len(confirmedTXs))
+        confirmedTXs.clear()
     print()
     throughputPer5 = []
     #Fix always displays 0 for first 5 seconds
