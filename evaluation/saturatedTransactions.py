@@ -14,10 +14,10 @@ from src.util import make_intersecting_committees_on_host
 
 #Defaults
 NUMBER_OF_TX_MIN = 1
-NUMBER_OF_TX_MAX = 15
+NUMBER_OF_TX_MAX = 2
 NUMBER_OF_COMMITTEES = 2
 INTERSECTION = 7
-NUMBER_OF_EXPERIMENTS = 3
+NUMBER_OF_EXPERIMENTS = 1
 OUTPUT_FILE = "TransactionSaturation.csv"
 
 #Const
@@ -129,7 +129,7 @@ def check_submitted_tx(confirmed, sub, port):
     remove_from_sub = []
     for tx in sub:
         url = URL_HOST.format(ip=IP_ADDRESS, port=choice(port[sub[tx].quorum_id]) + "/get/")
-        time.sleep(1)
+        time.sleep(.1)
         if sub[tx].value == get_plain_text(requests.post(url, json=sub[tx].to_json())):
             confirmed.append(tx)
             remove_from_sub.append(tx)
@@ -157,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', type=int, help='Total number of committees. Default {}'.format(NUMBER_OF_COMMITTEES))
     args = parser.parse_args()
 
-    output_file = Path(args.o) if args.o is not None else Path().home().joinpath(OUTPUT_FILE)
+    output_file = Path(args.o) if args.o is not None else Path().cwd().joinpath(OUTPUT_FILE)
     while not output_file.exists():
         output_file.touch()
     
@@ -166,9 +166,9 @@ if __name__ == '__main__':
     starting_number_of_transactions = NUMBER_OF_TX_MIN if args.min is None else args.min
     ending_number_of_transactions = NUMBER_OF_TX_MAX if args.max is None else args.max
     number_of_intersections = INTERSECTION if args.i is None else args.i
-    sawtooth_container_log_to(Path().home().joinpath('{}.SawtoothContainer.log'.format(__file__)))
-    intersection_log_to(Path().home().joinpath('{}.Intersection.log'.format(__file__)))
-    smart_shard_peer_log_to(Path().home().joinpath('{}.SmartShardPeer.log'.format(__file__)))
+    sawtooth_container_log_to(Path().cwd().joinpath('{}.SawtoothContainer.log'.format(__file__)))
+    intersection_log_to(Path().cwd().joinpath('{}.Intersection.log'.format(__file__)))
+    smart_shard_peer_log_to(Path().cwd().joinpath('{}.SmartShardPeer.log'.format(__file__)))
     print("experiments: {e}, committees: {c}".format(e=experiments, c=committees))
 
     make_graph_data(output_file, starting_number_of_transactions, ending_number_of_transactions,
