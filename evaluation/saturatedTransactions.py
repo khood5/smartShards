@@ -13,8 +13,8 @@ from src.structures import Transaction
 from src.util import make_intersecting_committees_on_host
 
 #Defaults
-NUMBER_OF_TX_MIN = 1
-NUMBER_OF_TX_MAX = 2
+NUMBER_OF_TX_MIN = 6
+NUMBER_OF_TX_MAX = 12
 NUMBER_OF_COMMITTEES = 2
 INTERSECTION = 7
 NUMBER_OF_EXPERIMENTS = 1
@@ -103,9 +103,11 @@ def run_experiment(peers: dict, number_of_transactions: int):
             url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected) + "/submit/"
             requests.post(url, json=tx.to_json())
             #Every 30 seconds places a period in console
-            if time.time() % 30:
-                print(" .", end='', flush=True)
+            #if time.time() % 30:
+                #print(" .", end='', flush=True)
             check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
+    time.sleep(1)
+    check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
     #ensures that all submitted and confirmed transactions are added to list
     if number_of_submitted_tx != 0 or len(confirmedTXs) != 0:
         amount_of_submittedtx_per_5sec.append(number_of_submitted_tx)
@@ -116,13 +118,21 @@ def run_experiment(peers: dict, number_of_transactions: int):
     throughputPer5 = []
     #Fix always displays 0 for first 5 seconds
     n = 0
+    amountCommitted = 0
+    amountSubmitted = 0
     while n < len(amount_of_confirmedtx_per_5sec):
     #for n in range(0, len(amount_of_confirmedtx_per_5sec)):
         if amount_of_submittedtx_per_5sec[n] == 0:
             throughputPer5.append(0)
         else:
-            throughputPer5.append(float(amount_of_confirmedtx_per_5sec[n]/amount_of_submittedtx_per_5sec[n]))
+            print("Amount of confirmed per 10 sec: {}".format(amount_of_confirmedtx_per_5sec[n]))
+            print("Amount of submitted per 10 sec: {}".format(amount_of_submittedtx_per_5sec[n]))
+            amountCommitted += amount_of_confirmedtx_per_5sec[n]
+            amountSubmitted += amount_of_submittedtx_per_5sec[n]
+            #throughputPer5.append(float(amount_of_confirmedtx_per_5sec[n]/amount_of_submittedtx_per_5sec[n]))
+            #print("Throughput per 10: {}".format(throughputPer5[n]))
         n += 1
+    throughputPer5.append(float(amountCommitted/amountSubmitted))
     return {"throughput": throughputPer5}
 
 def check_submitted_tx(confirmed, sub, port):
