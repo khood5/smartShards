@@ -123,10 +123,11 @@ def run_experiment(peers: dict, number_of_transactions: int):
     while n < len(amount_of_confirmedtx_per_5sec):
     #for n in range(0, len(amount_of_confirmedtx_per_5sec)):
         if amount_of_submittedtx_per_5sec[n] == 0:
-            throughputPer5.append(0)
+            #throughputPer5.append(0)
+            amountSubmitted += 0
         else:
-            print("Amount of confirmed per 10 sec: {}".format(amount_of_confirmedtx_per_5sec[n]))
-            print("Amount of submitted per 10 sec: {}".format(amount_of_submittedtx_per_5sec[n]))
+            #print("Amount of confirmed per 10 sec: {}".format(amount_of_confirmedtx_per_5sec[n]))
+            #print("Amount of submitted per 10 sec: {}".format(amount_of_submittedtx_per_5sec[n]))
             amountCommitted += amount_of_confirmedtx_per_5sec[n]
             amountSubmitted += amount_of_submittedtx_per_5sec[n]
             #throughputPer5.append(float(amount_of_confirmedtx_per_5sec[n]/amount_of_submittedtx_per_5sec[n]))
