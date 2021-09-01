@@ -1,6 +1,7 @@
 import argparse
 import gc
 import time
+from math import pow
 from pathlib import Path
 from random import choice
 
@@ -34,11 +35,11 @@ def make_graph_data(outfile: str, max: int, number_of_intersections: int, experi
     while m < NUMBER_OF_TX_MULT:
         out.write("Number of transactions submitted, throughput\n")
         print("----------------------------------------------------------")
-        print("Starting experiments for transaction amount {}".format(max*m))
-        avgs = get_avg_for((max*m), number_of_intersections, experiments, committees)
-        print("Experiments for transaction amount {} ended".format(max*m))
+        print("Starting experiments for transaction amount {}".format(pow(max, m)))
+        avgs = get_avg_for(pow(max, m), number_of_intersections, experiments, committees)
+        print("Experiments for transaction amount {} ended".format(pow(max, m)))
         print("----------------------------------------------------------")
-        out.write("{s}, {w}\n".format(s=(max*m), w=avgs["throughput"]))
+        out.write("{s}, {w}\n".format(s=(pow(max, m)), w=avgs["throughput"]))
         m += 1
     out.close()
 
@@ -67,12 +68,13 @@ def get_avg_for(number_of_transactions: int, number_of_intersections: int, exper
 #Gets the individual data for each amount of transactions sent
 def run_experiment(peers: dict, number_of_transactions: int):
     print("Running", end='', flush=True)
-    submitted_tx, amount_of_confirmedtx_per_5sec, confirmedTXs, urls = {}, [], [], []
+    submitted_tx, amount_of_confirmedtx_per_5sec, confirmedTXs = {}, [], []
     committee_ids = [peers[p].committee_id_a() for p in peers]
     committee_ids.extend([peers[p].committee_id_b() for p in peers])
     committee_ids = list(dict.fromkeys(committee_ids))
     peerList = list(peers.keys())
     peerQuorum = peersByQuorum(committee_ids, peers)
+    urlTXTuples = []
     m = 0
     while m < number_of_transactions:
         print("Submitting tx {}".format(m))
@@ -81,24 +83,20 @@ def run_experiment(peers: dict, number_of_transactions: int):
         submitted_tx[time.time()] = tx
         peerSelected = choice(peerList)
         url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected) + "/submit/"
-        urls.append(url)
-        #check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
-    for url in urls:
-        requests.post(url, json=tx.to_json())
+        urlTXTuples.append((url, tx))
+    #multithread
+    #for 60 secs
+    #sleep 1 second
+    #submit x transactions
+    for tupl in urlTXTuples:
+        requests.post(tupl[0], json=tupl[1].to_json())
     #time.sleep(1)
     check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
     amount_of_confirmedtx_per_5sec.append(len(confirmedTXs))
-    #ensures that all submitted and confirmed transactions are added to list
-    #if number_of_submitted_tx != 0 or len(confirmedTXs) != 0:
-        #amount_of_submittedtx_per_5sec.append(number_of_submitted_tx)
-        #number_of_submitted_tx = 0
-        #amount_of_confirmedtx_per_5sec.append(len(confirmedTXs))
-        #confirmedTXs.clear()
     throughputPer5 = []
     #Fix always displays 0 for first 5 seconds
     n = 0
     amountCommitted = 0
-    #amountSubmitted = 0
     while n < len(amount_of_confirmedtx_per_5sec):
         amountCommitted += amount_of_confirmedtx_per_5sec[n]
         n += 1
