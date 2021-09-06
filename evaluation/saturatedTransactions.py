@@ -16,7 +16,7 @@ from src.util import make_intersecting_committees_on_host
 
 # Defaults
 NUMBER_OF_TX_MULT = 2
-NUMBER_OF_TX = 32
+NUMBER_OF_TX = 13
 NUMBER_OF_COMMITTEES = 2
 INTERSECTION = 7
 NUMBER_OF_EXPERIMENTS = 3
@@ -77,21 +77,23 @@ def run_experiment(peers: dict, number_of_transactions: int):
     peerList = list(peers.keys())
     peerQuorum = peersByQuorum(committee_ids, peers)
     urlTXTuplesList = []
+    submittedTxList = []
     m = 0
     seconds = 10
     while m < seconds:
-        createTXs(number_of_transactions, urlTXTuplesList, committee_ids, submitted_tx, peerList)
+        createTXs(number_of_transactions, urlTXTuplesList, committee_ids, submittedTxList, peerList)
         m += 1
     o = 0
     while o < seconds:
         pool = ThreadPool(8)
         pool.map(submitTxs, urlTXTuplesList[0])
-        o += 1
         pool.close()
         pool.join()
         urlTXTuplesList.pop(0)
         time.sleep(1)
-        check_submitted_tx(confirmedTXs, submitted_tx, peerQuorum)
+        check_submitted_tx(confirmedTXs, submittedTxList[0], peerQuorum)
+        submittedTxList.pop(0)
+        o += 1
     amount_of_confirmedtx_per_5sec.append((len(confirmedTXs))/seconds)
     throughputPer5 = []
     n = 0
@@ -125,8 +127,9 @@ def peersByQuorum(quorum, peers):
 
 
 # Creates a grouping of tuples for the transactions. URL are key, TX are val
-def createTXs(txNumber, listOfTuples, committee_ids, submittedTx, peerList):
+def createTXs(txNumber, listOfTuples, committee_ids, submittedTxList, peerList):
     n = 0
+    submittedTx = {}
     urlTXTuples = []
     while n < txNumber:
         tx = Transaction(quorum=choice(committee_ids), key="tx_{}".format(n), value="{}".format(999))
@@ -136,6 +139,7 @@ def createTXs(txNumber, listOfTuples, committee_ids, submittedTx, peerList):
         urlTXTuples.append((url, tx))
         n += 1
     listOfTuples.append(urlTXTuples)
+    submittedTxList.append(submittedTx)
 
 
 # Submits each of the transactions, removes the used grouping from the list
