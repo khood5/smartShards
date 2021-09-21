@@ -25,6 +25,7 @@ INTERSECTION = 3
 NUMBER_OF_EXPERIMENTS = 1
 OUTPUT_FILE = "TransactionSaturation.csv"
 EXPERIMENT_DURATION_SECS = 120
+MEASUREMENT_INTERVAL = 5
 
 # Const
 IP_ADDRESS = "localhost"
@@ -32,15 +33,16 @@ URL_HOST = "http://{ip}:{port}"
 
 
 # Opens output file and writes results in it for each data point
-def make_graph_data(outfile: Path, min: int, max: int, experiment_duration_secs: int, number_of_intersections: int,
-                    experiments: int, committees: int):
+def make_graph_data(outfile: Path, min: int, max: int, experiment_duration_secs: int, measurement_interval_secs: int,
+                    number_of_intersections: int, experiments: int, committees: int):
     out = open(outfile, 'w')
     print("Outputting to {}".format(outfile))
     for number_of_tx in range(min, max):
         out.write("Number of transactions submitted, throughput\n")
         print("----------------------------------------------------------")
         print("Starting experiments for transaction amount {}".format(number_of_tx))
-        avgs = get_avg_for(number_of_tx, experiment_duration_secs, number_of_intersections, experiments, committees)
+        avgs = get_avg_for(number_of_tx, experiment_duration_secs, measurement_interval_secs, number_of_intersections,
+                           experiments, committees)
         print("Experiments for transaction amount {} ended".format(number_of_tx))
         print("----------------------------------------------------------")
         out.write("{s}, {w}\n".format(s=number_of_tx, w=avgs["throughput"]))
@@ -48,13 +50,13 @@ def make_graph_data(outfile: Path, min: int, max: int, experiment_duration_secs:
 
 
 # Run each experiment and calc avgs
-def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, number_of_intersections: int,
-                experiments: int, committees: int):
+def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, measurement_interval_secs: int,
+                number_of_intersections: int, experiments: int, committees: int):
     throughputPer5 = {}
     for e in range(experiments):
         print("Setting up experiment {}".format(e))
         peers = make_intersecting_committees_on_host(committees, number_of_intersections)
-        results = run_experiment(peers, experiment_duration_secs, number_of_transactions)
+        results = run_experiment(peers, experiment_duration_secs, measurement_interval_secs, number_of_transactions)
         throughputPer5[e] = results["throughput"]
         print("Cleaning up experiment {}".format(e))
         del peers
@@ -74,64 +76,62 @@ def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, numb
 
 
 # Gets the individual data for each amount of transactions sent
-def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transactions: int):
+# peers: dict of peers port number as key and SmartShardPeer as obj
+# experiment_duration_secs: how long to run experiment for
+# number_of_transactions: number of transactions per round (1 sec)
+def run_experiment(peers: dict, experiment_duration_secs: int, measurement_interval_secs: int,
+                   number_of_transactions: int):
     print("Running", end='', flush=True)
     committee_ids = [peers[p].committee_id_a() for p in peers]
     committee_ids.extend([peers[p].committee_id_b() for p in peers])
     committee_ids = list(dict.fromkeys(committee_ids))
-    peerList = list(peers.keys())
-    peerQuorum = peersByQuorum(committee_ids, peers)
-    urlTXTuplesList = []
-    submittedTxList = []
-    # peerQuorumList = peersByQuorumList(peerQuorum)
-    m = 0
+    # peerList = list(peers.keys())
+    peers_by_quorum = peersByQuorum(committee_ids, peers)
+    unsubmitted_tx_by_round = []  # list of transactions that should be submitted per round
+    # submittedTxList = []
+    # peerQuorumList = peersByQuorumList(peers_by_quorum)
 
     # Creates the amount of groups of tx equal to the amount of runs
-    while m < experiment_duration_secs:
-        createTXs(number_of_transactions, urlTXTuplesList, committee_ids, submittedTxList, peerList, peerQuorum)
-        m += 1
-    o = 0
-    # Creates a list of tuples of urls and json
-    # Use if on line 2
-    urlJsonList = []
-    for e in submittedTxList:
-        urlJsonList.append(createUrlJsonList(e))
-    # Runs for the amount of runs
-    startTime = time.time()
+    for round in range(0, experiment_duration_secs):
+        unsubmitted_tx_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round))
+
+    # # Creates a list of tuples of urls and json
+    # # Use if on line 2
+    # urlJsonList = []
+    # for e in submittedTxList:
+    #     urlJsonList.append(createUrlJsonList(e))
+    # # Runs for the amount of runs
+
     # Grab start time Current minus start
     # if > seconds
-    throughputPer5 = [0]
+    throughput = [0]
+    round = 0
+    startTime = time.time()
     while (time.time() - startTime) < experiment_duration_secs:
-        o += 1
+        round += 1
         # Creates multiprocessing pool
         pool = ThreadPool(number_of_transactions)
         # Divides the task into the pool
-        pool.map(submitTxs, urlTXTuplesList[0])
+        pool.map(submit_tx, unsubmitted_tx_by_round[0])
         # Processes and rejoins the pool
         pool.close()
         pool.join()
         # Checks the transactions
-        if floor(time.time() - startTime) % 5 == 0:
+        if floor(time.time() - startTime) % MEASUREMENT_INTERVAL == 0:
             total_confirmed = 0
-            for quorum in peerQuorum:
-                total_confirmed += check_submitted_tx(peerQuorum[quorum], quorum)
-            throughputPer5.append(total_confirmed - throughputPer5[-1])
+            for quorum in peers_by_quorum:
+                total_confirmed += check_submitted_tx(peers_by_quorum[quorum], quorum)
+            throughput.append(total_confirmed - throughput[-1])
 
-        # Removes top of urlJsonList
-        urlJsonList.pop(0)
-        # Removes the group of submitted txs
-        submittedTxList.pop(0)
-        # Removes the top element from the groups of txs
-        urlTXTuplesList.pop(0)
-        # If less than 1 second has passed, sleep for the difference
-        if (time.time() - startTime) < o:
+        # # Removes the top element from the groups of txs
+        unsubmitted_tx_by_round.pop(0)
+        # If less than 1 second has passed, sleep for the difference each round should be 1 sec
+        if (time.time() - startTime) < round:
             experment_durration = time.time() - startTime
-            o = floor(experment_durration)
-            print("experment_durration: {}".format(experment_durration))
-            print("o - experment_durration: {}".format(experment_durration - o))
-            time.sleep(o - experment_durration)
+            round = floor(experment_durration)
+            time.sleep(round - experment_durration)
 
-    return {"throughput": throughputPer5}
+    return {"throughput": throughput}
 
 
 # peers: list of peers by port number
@@ -178,33 +178,30 @@ def peersByQuorumList(dict):
     return peerQuorumList
 
 
-# Round robin this
 # Creates a grouping of tuples for the transactions. Time, tx, peer
-def createTXs(txNumber, listOfTuples, committee_ids, submittedTxList, peerList, peerQuorumList):
-    n = 0
-    submittedTx = []
-    urlTXTuples = []
-    peerSelected = deque(peerList)
+# peers: list of peers by port number
+# committee_ids: list of committee ids
+# number_of_transactions: number of transactions to create
+# round: the round number the tx should be submitted (in seconds into experiment )
+# returns a list of urls and transactions to post to them
+def create_txs(peers, committee_ids, number_of_transactions, round):
+    url_tx_tuples = []
+    peer_ports = list(peers.keys())
     # Creates a group of transactions equal to the txNumber
-    while n < txNumber:
-        tx = Transaction(quorum=choice(committee_ids), key="tx_{}".format(n), value="{}".format(999))
-        selectedPeer = choice(peerQuorumList[tx.quorum_id])
-        submittedTx.append((time.time(), tx, selectedPeer))
-        url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected[0]) + "/submit/"
-        urlTXTuples.append((url, tx))
-        n += 1
-        poppedPeer = peerSelected.popleft()
-        peerSelected.append(poppedPeer)
-    # Adds the txs to a list of groups
-    listOfTuples.append(urlTXTuples)
-    # Also adds the txs to a list of dictionaries of txs
-    submittedTxList.append(submittedTx)
+    for tx_id in range(0, number_of_transactions):
+        tx = Transaction(quorum=choice(committee_ids), key="tx_{round}_{id}".format(round=round, id=tx_id), value="{}".format(999))
+        selected_peer = peer_ports[0]
+        url = URL_HOST.format(ip=IP_ADDRESS, port=selected_peer) + "/submit/"
+        url_tx_tuples.append((url, tx))
+        peer_ports.append(peer_ports.pop(0))
+    return url_tx_tuples
 
 
 # Submits each of the transactions, removes the used grouping from the list
-def submitTxs(tuplesList):
+# transactions: list of tuples in the form (url to submit tx to, the tx to submit)
+def submit_tx(transactions):
     # Submits the transaction, using the url as a key
-    requests.post(tuplesList[0], json=tuplesList[1].to_json())
+    requests.post(transactions[0], json=transactions[1].to_json())
 
 
 def createUrlJsonList(sub):
@@ -220,13 +217,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Make a performance graph for forward based on transaction amount. '
                                                  'Each data point is an amount of transactions. Runs from tx#=q to tx#=2p')
     parser.add_argument('-o', type=str, help='File to output data (csv format)')
-    parser.add_argument('-max', type=int, help='Max number of transactions. Default {}'.format(MAX_NUMBER_OF_TX))
-    parser.add_argument('-min', type=int, help='Max number of transactions. Default {}'.format(MIN_NUMBER_OF_TX))
+    parser.add_argument('-max', type=int,
+                        help='Max number of transactions per round (1 sec). Default {}'.format(MAX_NUMBER_OF_TX))
+    parser.add_argument('-min', type=int,
+                        help='Min number of transactions per round (1 sec). Default {}'.format(MIN_NUMBER_OF_TX))
     parser.add_argument('-d', type=int, help='experiment duration in secs. Default {}'.format(EXPERIMENT_DURATION_SECS))
     parser.add_argument('-i', type=int, help='Intersection between committees. Default {}'.format(INTERSECTION))
     parser.add_argument('-e', type=int, help='Number of experiments to run per data point. '
                                              'Default {}'.format(NUMBER_OF_EXPERIMENTS))
     parser.add_argument('-t', type=int, help='Total number of committees. Default {}'.format(NUMBER_OF_COMMITTEES))
+    parser.add_argument('-m', type=int, help='measurement interval in secs. Default {}'.format(MEASUREMENT_INTERVAL))
     args = parser.parse_args()
 
     output_file = Path(args.o) if args.o is not None else Path().cwd().joinpath(OUTPUT_FILE)
@@ -238,6 +238,7 @@ if __name__ == '__main__':
     max_number_of_transactions = MAX_NUMBER_OF_TX if args.max is None else args.max
     min_number_of_transactions = MIN_NUMBER_OF_TX if args.min is None else args.min
     experiment_duration_secs = EXPERIMENT_DURATION_SECS if args.d is None else args.d
+    measurement_interval_secs = MEASUREMENT_INTERVAL if args.m is None else args.m
     number_of_intersections = INTERSECTION if args.i is None else args.i
     sawtooth_container_log_to(Path().cwd().joinpath('{}.SawtoothContainer.log'.format(__file__)))
     intersection_log_to(Path().cwd().joinpath('{}.Intersection.log'.format(__file__)))
@@ -245,4 +246,4 @@ if __name__ == '__main__':
     print("experiments: {e}, committees: {c}".format(e=experiments, c=committees))
 
     make_graph_data(output_file, min_number_of_transactions, max_number_of_transactions, experiment_duration_secs,
-                    number_of_intersections, experiments, committees)
+                    measurement_interval_secs, number_of_intersections, experiments, committees)
