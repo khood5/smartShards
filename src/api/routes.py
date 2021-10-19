@@ -161,6 +161,14 @@ def add_routes(app):
         else:
             return forward(app, "get/", req[QUORUM_ID], req)
 
+    @app.route('/blocks/', methods=['POST'])
+    def blocks():
+        req = get_json(request, app)
+        if app.config[PBFT_INSTANCES].in_committee(req[QUORUM_ID]):
+            return json.dumps(app.config[PBFT_INSTANCES].blocks(req[QUORUM_ID]))
+        else:
+            return forward(app, "blocks/", req[QUORUM_ID], req)
+
     @app.route('/user+key/<quorum_id>')
     def usr_key(quorum_id):
         if app.config[PBFT_INSTANCES].in_committee(quorum_id):

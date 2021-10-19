@@ -289,7 +289,8 @@ class SawtoothContainer:
 
     # return the blocks in this peers blockchain
     def blocks(self):
-        blocks = self.sawtooth_api('http://localhost:8008/blocks')
+        # limit=999999999 is the max number of blocks that can be returned in a single query
+        blocks = self.sawtooth_api('http://localhost:8008/blocks?limit=999999999')
         if 'data' in blocks:
             return blocks
         else:
