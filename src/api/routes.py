@@ -1,13 +1,14 @@
 import json
 
-from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID
+from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID, QUORUM_MEMBERS
 from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USER_KEY, DOCKER_IP
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
 from src.structures import Transaction
-from src.api.api_util import forward
+from src.api.api_util import forward, create_intersection_map, merge_intersection_maps
 from flask import jsonify, request
 import socket
+import requests
 
 def get_json(request, app):
     # try and parse json
@@ -28,7 +29,8 @@ def add_routes(app):
         port = request.host.split(':')[1]
         if app.config[PBFT_INSTANCES] is not None:
             if app.config[PBFT_INSTANCES].in_committee(quorum_id):
-                system_info = {API_IP: ip, PORT: port, QUORUM_ID: quorum_id}
+                quorum_members = len(app.config[QUORUMS][quorum_id]) + 1
+                system_info = {API_IP: ip, PORT: port, QUORUM_ID: quorum_id, QUORUM_MEMBERS: quorum_members}
                 return jsonify(system_info)
 
         system_info = {API_IP: ip, PORT: port, QUORUM_ID: None}
@@ -108,6 +110,45 @@ def add_routes(app):
             return res_json
         else:
             return ROUTE_EXECUTION_FAILED
+    
+    # returns the quorums with the fewest intersections
+    @app.route('/min+intersection')
+    @app.route('/min+intersection/<depth>')
+    def min_intersection(depth=0):
+        id_a = app.config[PBFT_INSTANCES].committee_id_a
+        id_b = app.config[PBFT_INSTANCES].committee_id_b
+        print("ida")
+        print(id_a)
+        print("idb")
+        print(id_b)
+        max_quorum_id = max([int(peer[QUORUM_ID]) for peer in app.config[QUORUMS][id_a]] + [int(id_b)])
+        print(app.config[QUORUMS])
+        print(max_quorum_id)
+        intersection_map = create_intersection_map(max_quorum_id+1)
+        print("intersection map")
+        print(intersection_map)
+        smaller_quorum_id = min(int(id_a), int(id_b))
+        larger_quorum_id = max(int(id_a), int(id_b))
+        intersection_map[str(smaller_quorum_id)][str(larger_quorum_id)][request.host] = 0
+        if (int(depth) < 2):
+            for quorum_id, neighbors in app.config[QUORUMS].items():
+                for neighbor in neighbors:
+                    res = requests.get(f"http://localhost:{neighbor['port']}/min+intersection/{int(depth)+1}")
+                    neighbor_map = json.loads(res.text)
+                    intersection_map = merge_intersection_maps(intersection_map, neighbor_map)
+        quorum_id_a = None
+        quorum_id_b = None
+        if (depth == 0):
+            max_peers = 0
+            for row_id, row in intersection_map.items():
+                for column_id, peer_set in row.items():
+                    if len(peer_set) > max_peers:
+                        max_peers = len(peer_set)
+                        quorum_id_a = row_id
+                        quorum_id_b = column_id
+            return jsonify([quorum_id_a, quorum_id_b])
+        else:
+            return jsonify(intersection_map)
 
     # remove neighbor from API after it leaves
     @app.route('/remove/<remove_port>', methods=['POST'])

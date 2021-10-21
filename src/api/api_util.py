@@ -57,3 +57,18 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                                                                         port=intersecting_quorum[PORT]))
                     app.logger.error(e)
                     return ROUTE_EXECUTION_FAILED.format(msg="forward to {} failed".format(url))
+
+
+# Creates a blank intersection map based on the number of quorums
+def create_intersection_map(quorums):
+    return {str(a): {str(b): {} for b in range(quorums)} for a in range(quorums)}
+
+# Merge intersection maps
+# Returns the resulting intersection map
+def merge_intersection_maps(map_a, map_b):
+    new_map = create_intersection_map(len(map_a.keys()))
+    for ((row_key_a, row_value_a), (row_key_b, row_value_b)) in zip(map_a.items(), map_b.items()):
+        for ((col_key_a, col_value_a), (col_key_b, col_value_b)) in zip(row_value_a.items(), row_value_b.items()):
+            new_map[row_key_a][col_key_a].update(col_value_a)
+            new_map[row_key_b][col_key_b].update(col_value_b)
+    return new_map
