@@ -111,42 +111,39 @@ def add_routes(app):
         else:
             return ROUTE_EXECUTION_FAILED
     
-    # returns the quorums with the fewest intersections
+    # Returns the IDs of the quorums with the fewest intersections when called with depth=0
+    # Otherwise returns an intersection map based on its depth
     @app.route('/min+intersection')
-    @app.route('/min+intersection/<depth>')
+    @app.route('/min+intersection/<int:depth>')
     def min_intersection(depth=0):
         id_a = app.config[PBFT_INSTANCES].committee_id_a
         id_b = app.config[PBFT_INSTANCES].committee_id_b
-        print("ida")
-        print(id_a)
-        print("idb")
-        print(id_b)
-        max_quorum_id = max([int(peer[QUORUM_ID]) for peer in app.config[QUORUMS][id_a]] + [int(id_b)])
-        print(app.config[QUORUMS])
-        print(max_quorum_id)
-        intersection_map = create_intersection_map(max_quorum_id+1)
-        print("intersection map")
-        print(intersection_map)
-        smaller_quorum_id = min(int(id_a), int(id_b))
-        larger_quorum_id = max(int(id_a), int(id_b))
-        intersection_map[str(smaller_quorum_id)][str(larger_quorum_id)][request.host] = 0
-        if (int(depth) < 2):
+        smaller_quorum_id = min(id_a, id_b)
+        larger_quorum_id = max(id_a, id_b)
+
+        quorum_ids = list(set([peer[QUORUM_ID] for peer in app.config[QUORUMS][id_a]] + [id_a, id_b]))
+        intersection_map = create_intersection_map(quorum_ids)
+        intersection_map[smaller_quorum_id][larger_quorum_id][request.host] = 0
+
+        if (depth < 2):
             for quorum_id, neighbors in app.config[QUORUMS].items():
                 for neighbor in neighbors:
-                    res = requests.get(f"http://localhost:{neighbor['port']}/min+intersection/{int(depth)+1}")
+                    res = requests.get(f"http://{neighbor[API_IP]}:{neighbor[PORT]}/min+intersection/{depth+1}")
                     neighbor_map = json.loads(res.text)
                     intersection_map = merge_intersection_maps(intersection_map, neighbor_map)
-        quorum_id_a = None
-        quorum_id_b = None
+                    print(intersection_map)
+        
         if (depth == 0):
-            max_peers = 0
+            min_quorum_id_a = None
+            min_quorum_id_b = None
+            min_peers = -1
             for row_id, row in intersection_map.items():
                 for column_id, peer_set in row.items():
-                    if len(peer_set) > max_peers:
-                        max_peers = len(peer_set)
-                        quorum_id_a = row_id
-                        quorum_id_b = column_id
-            return jsonify([quorum_id_a, quorum_id_b])
+                    if len(peer_set) < min_peers or min_peers == -1:
+                        min_peers = len(peer_set)
+                        min_quorum_id_a = row_id
+                        min_quorum_id_b = column_id
+            return jsonify([min_quorum_id_a, min_quorum_id_b])
         else:
             return jsonify(intersection_map)
 
