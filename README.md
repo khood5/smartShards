@@ -21,7 +21,7 @@ Python Docker SDK documentation: https://docker-py.readthedocs.io/en/stable/
 ##### In a single peer
 Each smart shards peer is built with the following stack 
 
-
+![This is an image](https://github.com/khood5/smartShards/blob/master/documentation/Smart%20Shards%20Class%20Diagram.png)
 
 #### Other Notes:
 
