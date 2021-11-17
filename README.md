@@ -8,8 +8,8 @@ This repository is the source code for smart shards. Smart shards is based on Hy
 
 #### Dependency Documentation
 
-Sawtooth Product page: https://sawtooth.hyperledger.org/docs/ 
-Sawtooth Documentation: https://sawtooth.hyperledger.org/docs/core/nightly/1-2/
+Sawtooth Product page: https://sawtooth.hyperledger.org/docs/  
+Sawtooth Documentation: https://sawtooth.hyperledger.org/docs/core/nightly/1-2/  
 Sawtooth source code: https://github.com/hyperledger/sawtooth-core
 
 Docker documentation: https://docs.docker.com/
