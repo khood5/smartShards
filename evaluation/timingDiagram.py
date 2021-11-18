@@ -10,6 +10,7 @@ import requests
 from src.Intersection import intersection_log_to
 from src.SawtoothPBFT import sawtooth_container_log_to
 from src.SmartShardPeer import smart_shard_peer_log_to
+from src.api.api_util import get_plain_text
 from src.structures import Transaction
 from src.util import make_intersecting_committees_on_host
 
@@ -65,6 +66,8 @@ def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, meas
             for key in throughputPerE[e]:
                 if key in throughput:
                     throughput[key] += throughputPerE.get(key)
+                else:
+                    throughput[key] = throughputPerE.get(key)
     return {"throughput": throughput}
 
 
@@ -88,21 +91,24 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
     round = 0
     startTime = time.time()
     while (time.time() - startTime) < experiment_duration_secs:
-        round += 1
         # Creates multiprocessing pool
         pool = ThreadPool(number_of_transactions)
         # Divides the task into the pool
-        pool.map(submitTxs, unsubmitted_tx_by_round[0])
-        pool.map(setTime, txTimeSubAndConf[0])
+        pool.map(submitTxs, unsubmitted_tx_by_round[round])
         # Processes and rejoins the pool
         pool.close()
         pool.join()
+        for tx in txTimeSubAndConf[round]:
+            tx.append(floor(time.time()))
         if floor(time.time() - startTime) % measurement_interval_secs == 0:
             for totalRounds in range(0, round):
                 check_from_peers(unsubmitted_tx_by_round[totalRounds], txTimeSubAndConf[totalRounds], peers)
         # If less than 1 second has passed, sleep for the difference
         if (time.time() - startTime) < round:
             time.sleep(round - (time.time() - startTime))
+        round += 1
+    for totalRounds in range(0, round):
+        check_from_peers(unsubmitted_tx_by_round[totalRounds], txTimeSubAndConf[totalRounds], peers)
     timeToConfirm = {}
     for totalRounds in range(0, round):
         for tx in range(0, number_of_transactions):
@@ -118,17 +124,19 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
 
 
 def check_from_peers(submitted, confirmed, peers):
+    url = URL_HOST.format(ip=IP_ADDRESS, port=str(list(peers.keys())[0]) + "/get/")
     remove_from_sub = []
-    intersectionA = peers[list(peers.keys())[0]].inter
+    #intersectionA = peers[list(peers.keys())[0]].inter
+    #intersectionA.get_tx(tx[1]) ==
     for tx in submitted:
-        if intersectionA.get_tx(tx[1]) == tx[1].value:
+        if tx[1].value == get_plain_text(requests.post(url, json=tx[1].to_json())):
             remove_from_sub.append(tx)
-            txID = (tx[1].key)[-1]
+            txID = (tx[1].key.split('_'))[2]
             confirmed[int(txID)].append(floor(time.time()))
     for r in remove_from_sub:
         i = 0
         for tx in submitted:
-            if (r[1].key)[-1] == (tx[1].key)[-1]:
+            if r[1].key == tx[1].key:
                 del submitted[i]
                 break
             i += 1
