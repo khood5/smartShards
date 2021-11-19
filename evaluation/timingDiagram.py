@@ -65,10 +65,14 @@ def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, meas
         else:
             for key in throughputPerE[e]:
                 if key in throughput:
-                    throughput[key] += throughputPerE.get(key)
+                    value = throughput[key] + throughputPerE[e][key]
+                    throughput[key] = value
                 else:
-                    throughput[key] = throughputPerE.get(key)
-    return {"throughput": throughput}
+                    throughput[key] = throughputPerE[e][key]
+    sortedlist = sorted(throughput.items())
+    #key = lambda x: x[0]
+    sortedThroughput = dict(sortedlist)
+    return {"throughput": sortedThroughput}
 
 
 # Gets the individual data for each amount of transactions sent
@@ -117,10 +121,10 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
                     timeToConfirm[(floor(txTimeSubAndConf[totalRounds][tx][1])-floor(txTimeSubAndConf[totalRounds][tx][0]))] += 1
                 else:
                     timeToConfirm[(floor(txTimeSubAndConf[totalRounds][tx][1]) - floor(txTimeSubAndConf[totalRounds][tx][0]))] = 1
-    throughput = []
-    for key in timeToConfirm:
-        throughput.append((key, timeToConfirm.get(key)))
-    return {"throughput": throughput}
+    #throughput = []
+    #for key in timeToConfirm:
+        #throughput.append((key, timeToConfirm.get(key)))
+    return {"throughput": timeToConfirm}
 
 
 def check_from_peers(submitted, confirmed, peers):
