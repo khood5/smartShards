@@ -59,8 +59,8 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                     return ROUTE_EXECUTION_FAILED.format(msg="forward to {} failed".format(url))
 
 
-# Creates a blank intersection map based on the number of quorums
-# An intersection map in dictionary of dictionaries that stores the 
+# Creates a blank intersection map based on the quorums
+# An intersection map is a dictionary of dictionaries that stores the 
 # intersections between two quorums.
 def create_intersection_map(quorum_ids):
     quorum_ids.sort()

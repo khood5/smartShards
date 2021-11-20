@@ -1,7 +1,7 @@
 import src.api as api
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
-from src.api.constants import PBFT_INSTANCES, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP
+from src.api.constants import PBFT_INSTANCES, QUORUMS, QUORUM_ID, TRANSACTION_KEY, TRANSACTION_VALUE, NEIGHBOURS, API_IP, ROUTE_EXECUTED_CORRECTLY
 from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
@@ -544,6 +544,21 @@ class TestAPI(unittest.TestCase):
                 'e': {}}
         }
         self.assertEqual(res.get_json(), expected_intersection_map)
+    
+    @patch('requests.post')
+    def test_request_join(self, mock_post):
+        side_effects = [
+            ['a', 'b'],
+            ROUTE_EXECUTED_CORRECTLY,
+            ROUTE_EXECUTED_CORRECTLY
+        ]
+        mock_post.side_effect = side_effects
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        test_client = app.test_client()
+        time.sleep(1)
+        res = test_client.post('/request+join', json={API_IP: "192.168.0.0", PORT: 5000})
 
 
 if __name__ == "__main__":

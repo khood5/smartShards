@@ -111,29 +111,34 @@ def add_routes(app):
         else:
             return ROUTE_EXECUTION_FAILED
     
-    # Returns the IDs of the quorums with the fewest intersections when called with depth=0
-    # Otherwise returns an intersection map based on its depth
+    # Recursively finds the quorums with the fewest intersections by joining intersection maps
     @app.route('/min+intersection')
     @app.route('/min+intersection/<int:depth>')
     def min_intersection(depth=0):
+        # Find the current peers two quorum ids and sort them
         id_a = app.config[PBFT_INSTANCES].committee_id_a
         id_b = app.config[PBFT_INSTANCES].committee_id_b
         smaller_quorum_id = min(id_a, id_b)
         larger_quorum_id = max(id_a, id_b)
 
+        # Use its list of neighbors to find all quroum ids (assuming there is at least 1 intersection)
         quorum_ids = list(set([peer[QUORUM_ID] for peer in app.config[QUORUMS][id_a]] + [id_a, id_b]))
+
+        # Creates a blank intersection map of all quroum ids and adds its own IP and port where it belongs
         intersection_map = create_intersection_map(quorum_ids)
         intersection_map[smaller_quorum_id][larger_quorum_id][request.host] = 0
 
         if (depth < 2):
+            # For each quorum the peer is in
             for quorum_id, neighbors in app.config[QUORUMS].items():
+                # For every neighboring peer in the quorum
                 for neighbor in neighbors:
+                    # Find the neighbors intersection map at a depth one higher and merge it with our current one
                     res = requests.get(f"http://{neighbor[API_IP]}:{neighbor[PORT]}/min+intersection/{depth+1}")
                     neighbor_map = json.loads(res.text)
                     intersection_map = merge_intersection_maps(intersection_map, neighbor_map)
-                    print(intersection_map)
         
-        if (depth == 0):
+        if (depth == 0): # Base call, find the minimum intersection using the completed itersection map and return the quorum ids
             min_quorum_id_a = None
             min_quorum_id_b = None
             min_peers = -1
@@ -144,8 +149,22 @@ def add_routes(app):
                         min_quorum_id_a = row_id
                         min_quorum_id_b = column_id
             return jsonify([min_quorum_id_a, min_quorum_id_b])
-        else:
+        else: # Recursive call, return the peer's intersection map
             return jsonify(intersection_map)
+    
+    # Requests to join the network in the minimum intersecting quorums
+    @app.route('/request+join', methods=['POST'])
+    def request_join():
+        # Find the minimum intersection
+        res_json = requests.post(f"http://{request.host}/min+intersection")
+
+        # Get the caller's IP and port, join them to the minimum quorums
+        req_json = request.get_json()
+        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[0]}")
+        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[1]}")
+        
+        return ROUTE_EXECUTED_CORRECTLY
+
 
     # remove neighbor from API after it leaves
     @app.route('/remove/<remove_port>', methods=['POST'])
