@@ -33,9 +33,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o config-consensus.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
-                                                                      sawtooth.validator.max_transactions_per_block=1 \
                                                                       sawtooth.validator.block_validation_rules=NofX:1,intkey \
-                                                                      sawtooth.publisher.max_batches_per_block=1 \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "sawtooth_config_command": "sawset proposal create --key {user_priv} \
                                                                       -o pbft-settings.batch \
@@ -43,9 +41,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       sawtooth.consensus.algorithm.version=1.0 \
                                                                       sawtooth.consensus.pbft.idle_timeout={ideal} \
                                                                       sawtooth.consensus.pbft.commit_timeout={commit} \
-                                                                      sawtooth.validator.max_transactions_per_block=1 \
                                                                       sawtooth.validator.block_validation_rules=NofX:1,intkey \
-                                                                      sawtooth.publisher.max_batches_per_block=1 \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
