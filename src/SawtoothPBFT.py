@@ -91,11 +91,11 @@ SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator  \
                            "client": 'intkey-tp-python -v',
                            "pbft": 'pbft-engine -vv --connect tcp://{ip}:5050'}
 
-LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+LOG_FILE_SIZE = 25 * 1024 * 1024  # 5MB
 
 
 def sawtooth_container_log_to(path, console_logging=False):
-    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=10, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     sawtooth_logger.propagate = console_logging
