@@ -164,6 +164,64 @@ def add_routes(app):
         requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[1]}")
         
         return ROUTE_EXECUTED_CORRECTLY
+    
+    # Recursively finds the quorums with the fewest intersections by joining intersection maps
+    @app.route('/max+intersection')
+    @app.route('/max+intersection/<int:depth>')
+    def max_intersection(depth=0):
+        # Find the current peers two quorum ids and sort them
+        id_a = app.config[PBFT_INSTANCES].committee_id_a
+        id_b = app.config[PBFT_INSTANCES].committee_id_b
+        smaller_quorum_id = min(id_a, id_b)
+        larger_quorum_id = max(id_a, id_b)
+
+        # Use its list of neighbors to find all quroum ids (assuming there is at least 1 intersection)
+        quorum_ids = list(set([peer[QUORUM_ID] for peer in app.config[QUORUMS][id_a]] + [id_a, id_b]))
+
+        # Creates a blank intersection map of all quroum ids and adds its own IP and port where it belongs
+        intersection_map = create_intersection_map(quorum_ids)
+        intersection_map[smaller_quorum_id][larger_quorum_id][request.host] = 0
+
+        if (depth < 2):
+            # For each quorum the peer is in
+            for quorum_id, neighbors in app.config[QUORUMS].items():
+                # For every neighboring peer in the quorum
+                for neighbor in neighbors:
+                    # Find the neighbors intersection map at a depth one higher and merge it with our current one
+                    res = requests.get(f"http://{neighbor[API_IP]}:{neighbor[PORT]}/max+intersection/{depth+1}")
+                    neighbor_map = json.loads(res.text)
+                    intersection_map = merge_intersection_maps(intersection_map, neighbor_map)
+        
+        if (depth == 0): # Base call, find the maximum intersection using the completed itersection map and return the quorum ids
+            max_quorum_id_a = None
+            max_quorum_id_b = None
+            max_peers = -1
+            for row_id, row in intersection_map.items():
+                for column_id, peer_set in row.items():
+                    if len(peer_set) > max_peers or max_peers == -1:
+                        max_peers = len(peer_set)
+                        max_quorum_id_a = row_id
+                        max_quorum_id_b = column_id
+            return jsonify(
+                {
+                    "max_intersection": [max_quorum_id_a, max_quorum_id_b],
+                    "peers": intersection_map[max_quorum_id_a][max_quorum_id_b]
+                })
+        else: # Recursive call, return the peer's intersection map
+            return jsonify(intersection_map)
+    
+    # Requests to leave the network and be replaced by a node from the maximum intersecting quorums
+    @app.route('/request+leave', methods=['POST'])
+    def request_leave():
+        # Find the maximum intersection
+        res_json = requests.post(f"http://{request.host}/max+intersection")
+
+        # Get the caller's IP and port, join them to the minimum quorums
+        req_json = request.get_json()
+        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[0]}")
+        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[1]}")
+        
+        return ROUTE_EXECUTED_CORRECTLY
 
 
     # remove neighbor from API after it leaves
