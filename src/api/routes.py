@@ -1,6 +1,6 @@
 import json
 
-from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID, QUORUM_MEMBERS
+from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID, QUORUM_MEMBERS, MIN_QUORUM_PEERS
 from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USER_KEY, DOCKER_IP
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
@@ -42,6 +42,7 @@ def add_routes(app):
         if app.config[PBFT_INSTANCES] is not None:
             app.logger.warning("peer has already started, restarting")
             del app.config[PBFT_INSTANCES]
+        app.logger.info(f"Starting {request.host} on quorums {quorum_id_a} and {quorum_id_b}")
         instance_a = SawtoothContainer()
         instance_b = SawtoothContainer()
         app.config[PBFT_INSTANCES] = Intersection(instance_a, instance_b, quorum_id_a, quorum_id_b)
@@ -95,13 +96,13 @@ def add_routes(app):
                                                            "/start/<quorum_id_a>/<quorum_id_b> first \n\n\n{}".format(
                 e)
 
-        app.logger.info("Adding quorum ID {q} with neighbours {n}".format(q=quorum_id, n=neighbours))
+        app.logger.info("Adding quorum ID {q} to {host} with neighbours {n}".format(q=quorum_id, n=neighbours, host=request.host))
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
 
 
-    @app.route('/quoruminfo/', methods=['POST'])
+    @app.route('/quoruminfo', methods=['POST'])
     def quoruminfo():
         if app.config[QUORUMS]:
             res_json = json.loads(json.dumps({
@@ -215,13 +216,73 @@ def add_routes(app):
     def request_leave():
         # Find the maximum intersection
         res_json = requests.post(f"http://{request.host}/max+intersection")
+        max_intersection_a = res_json["max_intersection"][0]
+        max_intersection_b = res_json["max_intersection"][1]
+        max_intersection_peers = res_json["peers"]
 
-        # Get the caller's IP and port, join them to the minimum quorums
-        req_json = request.get_json()
-        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[0]}")
-        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json[1]}")
+        id_a = app.config[PBFT_INSTANCES].committee_id_a
+        neighbors_a = app.config[QUORUMS][id_a]
+        id_b = app.config[PBFT_INSTANCES].committee_id_b
+        neighbors_b = app.config[QUORUMS][id_b]
+
+        if (max_intersection_a != id_a or max_intersection_b != id_b):
+            for peer in res_json['peers'].keys():
+                res = requests.post(f"http://{peer}/change+quorums", json={"req_id_a": id_a, "neighbors_a": neighbors_a, "req_id_b": id_b, "neighbors_b": neighbors_b})
+                if res == ROUTE_EXECUTED_CORRECTLY:
+                    break
+            else:
+                return ROUTE_EXECUTION_FAILED.format(msg=f"Nobody from {max_intersection_a}-{max_intersection_b} could replace current node")
+
+        # code to actually leave the quorum
         
         return ROUTE_EXECUTED_CORRECTLY
+    
+    @app.route('/change+quorums', methods=['POST'])
+    def change_quorums():
+        req = get_json(request, app)
+
+        intersection = app.config[PBFT_INSTANCES]
+
+        id_a = intersection.committee_id_a
+        id_b = intersection.committee_id_b
+
+        val_key_a = intersection.val_key(id_a)
+        val_key_b = intersection.val_key(id_b)
+
+        quorum_a_val_keys = intersection.get_peers(id_a)
+        quorum_b_val_keys = intersection.get_peers(id_b)
+
+        # If leaving will keep current quorums in a stable state
+        if (len(quorum_a_val_keys) - 1 >= MIN_QUORUM_PEERS and len(quorum_b_val_keys) - 1 >= MIN_QUORUM_PEERS):
+            quorum_a_val_keys.remove(val_key_a)
+            quorum_b_val_keys.remove(val_key_b)
+
+            intersection.update_committee(id_a, quorum_a_val_keys)
+            intersection.update_committee(id_b, quorum_b_val_keys)
+
+            for committee_id in app.config[QUORUMS]:
+                for neighbor in app.config[QUORUMS][committee_id]:
+                    host = f"{neighbor[API_IP]}:{neighbor[PORT]}"
+                    requests.post(f"http://{host}/remove+host", json={"remove_host": f"{request.host}"})
+
+            del app.config[PBFT_INSTANCES]
+            app.config[PBFT_INSTANCES] = None
+            app.config[QUORUMS] = {}
+            requests.get(f"http://{request.host}/start/{req['req_id_a']}/{req['req_id_b']}")
+            join_a_json = {
+                NEIGHBOURS: req['neighbors_a']
+            }
+            join_b_json = {
+                NEIGHBOURS: req['neighbors_b']
+            }
+            requests.post(f"http://{request.host}/add/{req['req_id_a']}", json=join_a_json)
+            requests.post(f"http://{request.host}/add/{req['req_id_b']}", json=join_b_json)
+
+            app.logger.info(f"At the end of change+quorums: {app.config[QUORUMS]}")
+
+            return ROUTE_EXECUTED_CORRECTLY
+        else:
+            return ROUTE_EXECUTION_FAILED.format(msg=f"Leaving would violate {id_a}-{id_b}'s integrity")
 
 
     # remove neighbor from API after it leaves
@@ -238,6 +299,19 @@ def add_routes(app):
                     del app.config[QUORUMS][committee_id][index]
                 index += 1
 
+        return ROUTE_EXECUTED_CORRECTLY
+
+    # remove neighbor from API after it leaves
+    @app.route('/remove+host', methods=['POST'])
+    def remove_host():
+        req = get_json(request, app)
+        remove_host = req["remove_host"]
+
+        app.logger.info("Removing {q} from node {n}".format(q=remove_host, n=app))
+
+        for committee_id in app.config[QUORUMS]:
+            app.config[QUORUMS][committee_id] = [neighbor for neighbor in app.config[QUORUMS][committee_id] if (f"{neighbor[API_IP]}:{neighbor[PORT]}" != remove_host)]
+            
         return ROUTE_EXECUTED_CORRECTLY
 
     # request that genesis be made

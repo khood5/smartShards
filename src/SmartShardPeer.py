@@ -73,7 +73,7 @@ class SmartShardPeer:
         return self.port
 
     def check_neighbors(self, port):
-        url = "http://localhost:{port}/quoruminfo/".format(port=port)
+        url = "http://localhost:{port}/quoruminfo".format(port=port)
         recv_neighbors = json.loads(requests.post(url, json={}).text)["neighbors"]
         self.app.api.config[QUORUMS] = recv_neighbors
 
