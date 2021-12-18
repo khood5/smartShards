@@ -813,10 +813,6 @@ class TestAPI(unittest.TestCase):
     def test_change_quorums(self):
         peers = make_intersecting_committees_on_host(5, 2)
         port = list(peers.keys())[0]
-        app = peers[port].app.api
-        app.config['TESTING'] = True
-        app.config['DEBUG'] = False
-        test_client = app.test_client()
         requests.post(f'http://localhost:{port}/change+quorums', json={"req_id_a": "c", "neighbors_a": ADD_C_JSON[NEIGHBOURS], "req_id_b": "d", "neighbors_b": ADD_D_JSON[NEIGHBOURS]})
         time.sleep(5)
         res = requests.post(f'http://localhost:{port}/quoruminfo').json()
