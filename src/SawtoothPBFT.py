@@ -194,7 +194,7 @@ class SawtoothContainer:
         ips = json.loads(ips_str)
         return ips
 
-    # Gets a table of all other peers
+    # Gets a table of all other peers' validator keys
     def get_peers(self):
         result = json.dumps(json.loads(self.run_command(SAWTOOTH_GET_PEERS_COMMAND))["settings"]["sawtooth.consensus.pbft.members"]).replace('\\', "")
         list_start = result.find("[")
@@ -280,7 +280,7 @@ class SawtoothContainer:
         return self.__container_network
 
     # all peers communicate via a virtual network hosted by docker. Docker runs DHCP and will assign each peer a new IP
-    # peers can access other peers by there ip address and only there ip address, there is no DNS
+    # peers can access other peers by their ip address and only their ip address, there is no DNS
     def ip(self):
         try:
             return self.__ip_addr

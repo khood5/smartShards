@@ -5,7 +5,7 @@ from src.api.constants import PBFT_INSTANCES, QUORUMS, QUORUM_ID, TRANSACTION_KE
 from src.api.constants import PORT, USER_KEY, VALIDATOR_KEY, DOCKER_IP
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
-from src.util import stop_all_containers
+from src.util import stop_all_containers, make_intersecting_committees_on_host
 from src.api.api_util import get_plain_text
 import docker as docker_api
 import unittest
@@ -15,6 +15,7 @@ import time
 import gc
 from mock import patch, Mock
 from requests import Response
+import requests
 
 TRANSACTION_A_JSON = json.loads(json.dumps({QUORUM_ID: "a",
                                             TRANSACTION_KEY: "test",
@@ -83,6 +84,46 @@ ADD_B_JSON = json.loads(json.dumps({
             API_IP: "192.168.1.700",
             PORT: "5000",
             QUORUM_ID: "e"
+        }
+    ]
+}))
+
+ADD_C_JSON = json.loads(json.dumps({
+    NEIGHBOURS: [
+        {
+            API_IP: "192.168.1.200",  # ip for the API
+            PORT: "5000",
+            QUORUM_ID: "a"
+        },
+        {
+            API_IP: "192.168.1.500",
+            PORT: "5000",
+            QUORUM_ID: "b"
+        },
+        {
+            API_IP: "192.168.1.800",
+            PORT: "5000",
+            QUORUM_ID: "d"
+        }
+    ]
+}))
+
+ADD_D_JSON = json.loads(json.dumps({
+    NEIGHBOURS: [
+        {
+            API_IP: "192.168.1.300",  # ip for the API
+            PORT: "5000",
+            QUORUM_ID: "a"
+        },
+        {
+            API_IP: "192.168.1.600",
+            PORT: "5000",
+            QUORUM_ID: "b"
+        },
+        {
+            API_IP: "192.168.1.800",
+            PORT: "5000",
+            QUORUM_ID: "c"
         }
     ]
 }))
@@ -549,6 +590,21 @@ class TestAPI(unittest.TestCase):
                 'e': {}}
         }
         self.assertEqual(res.get_json(), expected_intersection_map)
+    
+    @patch('requests.post')
+    def test_request_join(self, mock_post):
+        side_effects = [
+            ['a', 'b'],
+            ROUTE_EXECUTED_CORRECTLY,
+            ROUTE_EXECUTED_CORRECTLY
+        ]
+        mock_post.side_effect = side_effects
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        test_client = app.test_client()
+        time.sleep(1)
+        res = test_client.post('/request+join', json={API_IP: "192.168.0.0", PORT: 5000})
 
     @patch('requests.get')
     def test_max_intersection_all_equal_depth_0(self, mock_get):
@@ -728,20 +784,83 @@ class TestAPI(unittest.TestCase):
         }
         self.assertEqual(res.get_json(), expected_intersection_map)
     
-    @patch('requests.post')
-    def test_request_join(self, mock_post):
-        side_effects = [
-            ['a', 'b'],
-            ROUTE_EXECUTED_CORRECTLY,
-            ROUTE_EXECUTED_CORRECTLY
-        ]
-        mock_post.side_effect = side_effects
+    def test_remove_host(self):
         app = api.create_app()
         app.config['TESTING'] = True
         app.config['DEBUG'] = False
         test_client = app.test_client()
+        test_client.get('/start/a/b')
+        test_client.post('/add/a', json=ADD_A_JSON)
+        test_client.post('/add/b', json=ADD_B_JSON)
         time.sleep(1)
-        res = test_client.post('/request+join', json={API_IP: "192.168.0.0", PORT: 5000})
+        test_client.post('/remove+host', json={"remove_host": "192.168.1.300:5000"})
+        self.assertEqual(
+            app.config[QUORUMS]['a'], 
+            [
+                {
+                    API_IP: "192.168.1.200",
+                    PORT: "5000",
+                    QUORUM_ID: "c"
+                },
+                {
+                    API_IP: "192.168.1.400",
+                    PORT: "5000",
+                    QUORUM_ID: "e"
+                }
+            ]
+        )
+    
+    def test_change_quorums(self):
+        peers = make_intersecting_committees_on_host(5, 2)
+        port = list(peers.keys())[0]
+        app = peers[port].app.api
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        test_client = app.test_client()
+        requests.post(f'http://localhost:{port}/change+quorums', json={"req_id_a": "c", "neighbors_a": ADD_C_JSON[NEIGHBOURS], "req_id_b": "d", "neighbors_b": ADD_D_JSON[NEIGHBOURS]})
+        time.sleep(5)
+        res = requests.post(f'http://localhost:{port}/quoruminfo').json()
+        self.assertEqual(list(res["neighbors"].keys()), ['c', 'd'])
+        self.assertEqual(
+            res["neighbors"]['c'], 
+            [
+                {
+                    API_IP: "192.168.1.200",  # ip for the API
+                    PORT: "5000",
+                    QUORUM_ID: "a"
+                },
+                {
+                    API_IP: "192.168.1.500",
+                    PORT: "5000",
+                    QUORUM_ID: "b"
+                },
+                {
+                    API_IP: "192.168.1.800",
+                    PORT: "5000",
+                    QUORUM_ID: "d"
+                }
+            ]
+        )
+        self.assertEqual(
+            res["neighbors"]['d'], 
+            [
+                {
+                    API_IP: "192.168.1.300",  # ip for the API
+                    PORT: "5000",
+                    QUORUM_ID: "a"
+                },
+                {
+                    API_IP: "192.168.1.600",
+                    PORT: "5000",
+                    QUORUM_ID: "b"
+                },
+                {
+                    API_IP: "192.168.1.800",
+                    PORT: "5000",
+                    QUORUM_ID: "c"
+                }
+            ]
+        )
 
 
 if __name__ == "__main__":

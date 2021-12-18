@@ -156,3 +156,27 @@ class Intersection:
         if self.instance_a.attached_network() != self.instance_b.attached_network():
             intersection_logger.warning('PEER: containers attached to different networks, only a is given')
         return self.instance_a.attached_network()
+
+    def get_peers(self, quorum_id):
+        if str(quorum_id) == self.committee_id_a:
+            return self.instance_a.get_peers()
+        elif str(quorum_id) == self.committee_id_b:
+            return self.instance_b.get_peers()
+        else:
+            intersection_logger.error('PEER: get peers request for unknown quorum, '
+                                      'known quorums:{known} requested quorum:{unknown}'.format(
+                                        known=[self.committee_id_a, self.committee_id_b],
+                                        unknown=quorum_id))
+        return None
+
+    def get_ips(self, quorum_id):
+        if str(quorum_id) == self.committee_id_a:
+            return self.instance_a.get_ips()
+        elif str(quorum_id) == self.committee_id_b:
+            return self.instance_b.get_ips()
+        else:
+            intersection_logger.error('PEER: get ips request for unknown quorum, '
+                                      'known quorums:{known} requested quorum:{unknown}'.format(
+                                        known=[self.committee_id_a, self.committee_id_b],
+                                        unknown=quorum_id))
+        return None
