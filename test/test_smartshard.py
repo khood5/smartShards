@@ -1,12 +1,11 @@
 import requests
-
 from src.SmartShardPeer import SmartShardPeer
 from src.Intersection import Intersection
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import VALIDATOR_KEY as VKEY
 from src.SawtoothPBFT import USER_KEY as UKEY
 from src.api.constants import ROUTE_EXECUTED_CORRECTLY, QUORUMS, PBFT_INSTANCES, QUORUM_ID, PORT
-from src.util import stop_all_containers, make_intersecting_committees_on_host, check_for_confirmation
+from src.util import stop_all_containers, make_intersecting_committees_on_host, check_for_confirmation, find_free_port
 from src.api.api_util import get_plain_text
 import docker as docker_api
 import warnings
@@ -121,6 +120,76 @@ class TestSmartShard(unittest.TestCase):
         self.assertEqual(get_plain_text(client.get('/val+key/b')), container_val_key)
         self.assertEqual(get_plain_text(client.get('/user+key/b')), container_user_key)
         self.assertNotEqual(get_plain_text(client.get('/val+key/b')), get_plain_text(client.get('/user+key/b')))
+
+    def test_cooperative_join(self):
+        peers = make_intersecting_committees_on_host(5, 1)
+        peer_ports = list(peers.keys())
+
+        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
+        print("Pre-join:")
+        print(res)
+
+        for peer_list in res.values():
+            self.assertEqual(len(peer_list), 3)
+
+        new_peer = SmartShardPeer()
+        new_peer.join_network(f"localhost:{peer_ports[0]}")
+
+        print("pre in test")
+        print(new_peer.inter)
+        print(new_peer.app.api.config[PBFT_INSTANCES])
+
+        time.sleep(5)
+
+        print("post in test")
+        print(new_peer.inter)
+        print(new_peer.app.api.config[PBFT_INSTANCES])
+
+        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
+        print("Post-join:")
+        print(res)
+
+        for peer_list in res.values():
+            self.assertEqual(len(peer_list), 4)
+        
+    def test_cooperative_join_2(self):
+        peers = make_intersecting_committees_on_host(5, 2)
+        peer_ports = list(peers.keys())
+
+        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
+        print("Pre-join:")
+        print(res)
+
+        new_peer_1 = SmartShardPeer(port=find_free_port())
+        new_peer_1.join_network(f"localhost:{peer_ports[0]}")
+
+        time.sleep(5)
+
+        new_peer_2 = SmartShardPeer(port=find_free_port())
+        new_peer_2.join_network(f"localhost:{peer_ports[0]}")
+
+        time.sleep(5)
+
+        print(f"new peer 1, port {new_peer_1.port}, is in {new_peer_1.inter.committee_id_a} and {new_peer_1.inter.committee_id_b}")
+        print(f"new peer 2, port {new_peer_2.port}, is in {new_peer_2.inter.committee_id_a} and {new_peer_2.inter.committee_id_b}")
+
+        new_peer_1_res = res = requests.post(f"http://localhost:{new_peer_1.port}/quoruminfo").json()["neighbors"]
+        new_peer_2_res = res = requests.post(f"http://localhost:{new_peer_2.port}/quoruminfo").json()["neighbors"]
+
+        print(f"new peer 1, neighbors are {new_peer_1_res}")
+        print(f"new peer 2, neighbors are {new_peer_2_res}")
+
+        for quorum, neighbors in new_peer_1_res.items():
+            print(f"peer 1 has {len(neighbors)} API neighbors {neighbors} in quorum {quorum}")
+            docker_peers = new_peer_1.inter.get_ips(quorum)
+            print(f"peer 1 has {len(docker_peers)} docker peers {docker_peers} in quorum {quorum}")
+
+        for quorum, neighbors in new_peer_2_res.items():
+            print(f"peer 2 has {len(neighbors)} API neighbors in quorum {quorum}")
+            docker_peers = new_peer_2.inter.get_ips(quorum)
+            print(f"peer 2 has {len(docker_peers)} docker peers {docker_peers} in quorum {quorum}")
+        
+        time.sleep(5)
 
     def test_cooperative_leave(self):
         num_committees = 8

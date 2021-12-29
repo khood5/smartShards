@@ -80,3 +80,11 @@ def merge_intersection_maps(map_a, map_b):
             new_map[row_key_a][col_key_a].update(col_value_a)
             new_map[row_key_b][col_key_b].update(col_value_b)
     return new_map
+
+# Inserts a peer into an intersection map, automatically sorting ther quorums
+# Returns nothing, alters the given map
+def insert_into_intersection_map(map, peer, quorum_a, quorum_b):
+    if quorum_a <= quorum_b:
+        map[quorum_a][quorum_b][peer] = 0
+    else:
+        map[quorum_b][quorum_a][peer] = 0
