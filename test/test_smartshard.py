@@ -156,10 +156,6 @@ class TestSmartShard(unittest.TestCase):
         peers = make_intersecting_committees_on_host(5, 2)
         peer_ports = list(peers.keys())
 
-        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
-        print("Pre-join:")
-        print(res)
-
         new_peer_1 = SmartShardPeer(port=find_free_port())
         new_peer_1.join_network(f"localhost:{peer_ports[0]}")
 
