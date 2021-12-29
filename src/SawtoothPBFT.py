@@ -169,10 +169,6 @@ class SawtoothContainer:
             sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP TO BELOW FOUR MEMBERS ------!!!!!!")
             if stop_on_failure:
                 return False
-        if len(validator_keys) != len(validator_keys):
-            sawtooth_logger.error("!!!!!!------ PEER UPDATING MEMBERSHIP VALIDATOR/USER KEY MISMATCH ------!!!!!!")
-            sawtooth_logger.error("!!!!!!------        PEER UPDATING MEMBERSHIP UPDATE SKIPPED       ------!!!!!!")
-            return False
         if self.__admin_key is None:
             logging.error("{ip}: can not issue update missing admin key".format(ip=self.ip()))
             return False
