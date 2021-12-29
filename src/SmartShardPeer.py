@@ -8,6 +8,8 @@ import multiprocessing as mp
 import os
 import time
 import json
+from src.SawtoothPBFT import SawtoothContainer
+from src.Intersection import Intersection
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -76,7 +78,95 @@ class SmartShardPeer:
         url = "http://localhost:{port}/quoruminfo".format(port=port)
         recv_neighbors = json.loads(requests.post(url, json={}).text)["neighbors"]
         self.app.api.config[QUORUMS] = recv_neighbors
+    
+    def join_network(self, known_host):
+        res = requests.get(f"http://{known_host}/min+intersection").json()
+        print(f"peer on port {self.port} knows min intersection")
+        print(res)
+        min_intersection = res["min_intersection"]
+        min_intersection_peers = list(res["peers"].keys())
+        min_peer = min_intersection_peers[0]
+        min_peer_ip = min_peer.split(':')[0]
+        min_peer_port = min_peer.split(':')[1]
 
+        id_a = min_intersection[0]
+        id_b = min_intersection[1]
+
+        if len(min_intersection_peers) == 0:
+            logging.error(f"The minimum intersection has no peers, can't ask for neighbors")
+            return
+        
+        a = SawtoothContainer()
+        print(f"peer a has IP: {a.ip()}")
+        b = SawtoothContainer()
+        print(f"peer b has IP: {b.ip()}")
+        self.inter = Intersection(a, b, id_a, id_b)
+        
+        if self.app is None:
+            logging.info(f"SmartShardPeer on port {self.port} does not have an app yet, starting it now")
+            self.start()
+
+        min_intersection_neighbors = requests.post(f"http://{min_peer}/quoruminfo").json()["neighbors"]
+        min_intersection_neighbors_a = min_intersection_neighbors[id_a]
+        min_intersection_neighbors_a.append({API_IP: min_peer_ip, PORT: min_peer_port, QUORUM_ID: id_b})
+        min_intersection_neighbors_b = min_intersection_neighbors[id_b]
+        min_intersection_neighbors_b.append({API_IP: min_peer_ip, PORT: min_peer_port, QUORUM_ID: id_a})
+
+        min_intersection_ips_a = list(set(requests.get(f"http://{min_peer}/ips/{id_a}").json()))
+        min_peer_ip_a = requests.get(f'http://{min_peer}/ip/{id_a}').text
+        print(f"current ips a: {min_intersection_ips_a}")
+        print(f"self ip a: {min_peer_ip_a}")
+        min_intersection_ips_a.append(f"{min_peer_ip_a}:8800")
+        min_intersection_ips_b = list(set(requests.get(f"http://{min_peer}/ips/{id_b}").json()))
+        min_peer_ip_b = requests.get(f'http://{min_peer}/ip/{id_b}').text
+        print(f"current ips b: {min_intersection_ips_b}")
+        print(f"self ip b: {min_peer_ip_b}")
+        min_intersection_ips_b.append(f"{min_peer_ip_b}:8800")
+
+        print(f"HERE IS SOME IMPORTANT INFO FROM {self.port}")
+        print(min_intersection_neighbors_a)
+        print(min_intersection_neighbors_b)
+        print(min_intersection_ips_a)
+        print(min_intersection_ips_b)
+        print(len(min_intersection_neighbors_a))
+        print(len(min_intersection_neighbors_b))
+        print(len(min_intersection_ips_a))
+        print(len(min_intersection_ips_b))
+
+        join_a_json = [{**neighbors, DOCKER_IP: ip} for neighbors, ip in zip(min_intersection_neighbors_a, min_intersection_ips_a)]
+        join_b_json = [{**neighbors, DOCKER_IP: ip} for neighbors, ip in zip(min_intersection_neighbors_b, min_intersection_ips_b)]
+
+        logging.info("Join A JSON:")
+        logging.info(join_a_json)
+        logging.info("Join B JSON:")
+        logging.info(join_b_json)
+
+        requests.get(f"http://localhost:{self.port}/start/{id_a}/{id_b}")
+        requests.post(f"http://localhost:{self.port}/join/{id_a}", json={NEIGHBOURS: join_a_json})
+        requests.post(f"http://localhost:{self.port}/join/{id_b}", json={NEIGHBOURS: join_b_json})
+
+        for peer in min_intersection_neighbors_a:
+            requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json={"host": f"localhost:{self.port}", "host_quorum": min_intersection[1], "quorum": min_intersection[0]})
+        
+        for peer in min_intersection_neighbors_b:
+            requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json={"host": f"localhost:{self.port}", "host_quorum": min_intersection[0], "quorum": min_intersection[1]})
+
+        time.sleep(30)
+
+        requests.post(f"http://{min_peer}/add+validator", json={
+            "quorum_id": id_a,
+            "val_key": a.val_key()
+        })
+
+        time.sleep(30)
+
+        requests.post(f"http://{min_peer}/add+validator", json={
+            "quorum_id": id_b,
+            "val_key": b.val_key()
+        })
+
+        time.sleep(30)
+    
     # Leave the network cooperatively
     def leave(self):
         logging.info("API peer on port :" + str(self.port) + " attempting to cooperatively leave.")

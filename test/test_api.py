@@ -13,7 +13,7 @@ import json
 import warnings
 import time
 import gc
-from mock import patch, Mock
+from mock import patch, Mock, MagicMock
 from requests import Response
 import requests
 
@@ -418,21 +418,16 @@ class TestAPI(unittest.TestCase):
             self.assertEqual('999', get_plain_text(p.post('/get/', json=TRANSACTION_A_JSON)))
     
     @patch('requests.get')
-    def test_min_intersection_all_equal_depth_0(self, mock_get):
+    def test_min_intersection_all_equal(self, mock_get):
         # Fully connected, 5 quorums
         # Responses from a-c, a-d, a-e, b-c, b-d, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -445,23 +440,19 @@ class TestAPI(unittest.TestCase):
         test_client.post('/add/b', json=ADD_B_JSON)
         time.sleep(1)
         res = test_client.get('/min+intersection')
-        self.assertEqual(res.get_json(), ['a', 'b'])
+        self.assertEqual(res.get_json(), {'min_intersection': ['a', 'b'], 'peers': {'localhost': 0}})
     
     @patch('requests.get')
-    def test_min_intersection_1_less_than_rest_depth_0(self, mock_get):
+    def test_min_intersection_1_less_than_rest(self, mock_get):
         # Almost fully connected, missing A-C peer
         # Responses from a-d, a-e, b-c, b-d, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -474,22 +465,19 @@ class TestAPI(unittest.TestCase):
         test_client.post('/add/b', json=ADD_B_JSON)
         time.sleep(1)
         res = test_client.get('/min+intersection')
-        self.assertEqual(res.get_json(), ['a', 'c'])
+        self.assertEqual(res.get_json(), {'min_intersection': ['a', 'c'], 'peers': {}})
     
     @patch('requests.get')
-    def test_min_intersection_2_less_than_rest_depth_0(self, mock_get):
+    def test_min_intersection_2_less_than_rest(self, mock_get):
         # Almost fully connected, missing A-C peer and B-D peer
         # Responses from a-d, a-e, b-c, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -502,99 +490,13 @@ class TestAPI(unittest.TestCase):
         test_client.post('/add/b', json=ADD_B_JSON_MISSING_B_D)
         time.sleep(1)
         res = test_client.get('/min+intersection')
-        self.assertEqual(res.get_json(), ['a', 'c'])
-    
-    @patch('requests.get')
-    def test_min_intersection_all_equal_depth_1(self, mock_get):
-        # Fully connected, 5 quorums
-        # Responses from a-c, a-d, a-e, b-c, b-d, b-e
-        intersection_maps = [
-            {'a': {'b': {}, 'c': {"192.168.1.200:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}}
-        ]
-        side_effects = []
-        for intersection_map in intersection_maps:
-            res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
-            res.status_code = 200
-            side_effects.append(res)
-        mock_get.side_effect = side_effects
-        app = api.create_app()
-        app.config['TESTING'] = True
-        app.config['DEBUG'] = False
-        test_client = app.test_client()
-        test_client.get('/start/a/b')
-        test_client.post('/add/a', json=ADD_A_JSON)
-        test_client.post('/add/b', json=ADD_B_JSON)
-        time.sleep(1)
-        res = test_client.get('/min+intersection/1')
-        expected_intersection_map = {
-            'a': {
-                'b': {"localhost": 0}, 
-                'c': {"192.168.1.200:5000": 0}, 
-                'd': {"192.168.1.300:5000": 0}, 
-                'e': {"192.168.1.400:5000": 0}}, 
-            'b': {
-                'c': {"192.168.1.500:5000": 0}, 
-                'd': {"192.168.1.600:5000": 0}, 
-                'e': {"192.168.1.700:5000": 0}}, 
-            'c': {
-                'd': {}, 
-                'e': {}}, 
-            'd': {
-                'e': {}}
-        }
-        self.assertEqual(res.get_json(), expected_intersection_map)
-    
-    @patch('requests.get')
-    def test_min_intersection_all_equal_depth_2(self, mock_get):
-        # Fully connected, 5 quorums
-        # Responses from a-c, a-d, a-e, b-c, b-d, b-e
-        intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}}
-        ]
-        side_effects = []
-        for intersection_map in intersection_maps:
-            res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
-            res.status_code = 200
-            side_effects.append(res)
-        mock_get.side_effect = side_effects
-        app = api.create_app()
-        app.config['TESTING'] = True
-        app.config['DEBUG'] = False
-        test_client = app.test_client()
-        test_client.get('/start/a/b')
-        test_client.post('/add/a', json=ADD_A_JSON)
-        test_client.post('/add/b', json=ADD_B_JSON)
-        time.sleep(1)
-        res = test_client.get('/min+intersection/2')
-        expected_intersection_map = {
-            'a': {
-                'b': {"localhost": 0}, 
-                'c': {}, 
-                'd': {}, 
-                'e': {}}, 
-            'b': {
-                'c': {}, 
-                'd': {}, 
-                'e': {}}, 
-            'c': {
-                'd': {}, 
-                'e': {}}, 
-            'd': {
-                'e': {}}
-        }
-        self.assertEqual(res.get_json(), expected_intersection_map)
+        self.assertEqual(res.get_json(), {'min_intersection': ['a', 'c'], 'peers': {}})
     
     @patch('requests.post')
     def test_request_join(self, mock_post):
         side_effects = [
-            ['a', 'b'],
+            {'min_intersection': ['a', 'b'], 'peers': {'localhost': 0}},
+            ROUTE_EXECUTED_CORRECTLY,
             ROUTE_EXECUTED_CORRECTLY,
             ROUTE_EXECUTED_CORRECTLY
         ]
@@ -607,21 +509,16 @@ class TestAPI(unittest.TestCase):
         res = test_client.post('/request+join', json={API_IP: "192.168.0.0", PORT: 5000})
 
     @patch('requests.get')
-    def test_max_intersection_all_equal_depth_0(self, mock_get):
+    def test_max_intersection_all_equal(self, mock_get):
         # Fully connected, 5 quorums
         # Responses from a-c, a-d, a-e, b-c, b-d, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -637,22 +534,16 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(res.get_json(), {'max_intersection': ['a', 'b'], 'peers': {'localhost': 0}})
     
     @patch('requests.get')
-    def test_max_intersection_1_more_than_rest_depth_0(self, mock_get):
+    def test_max_intersection_1_more_than_rest(self, mock_get):
         # Fully connected, extra A-C peer
         # Responses from a-c, a-c, a-d, a-e, b-c, b-d, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -668,23 +559,16 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(res.get_json(), {'max_intersection': ['a', 'c'], 'peers': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}})
     
     @patch('requests.get')
-    def test_max_intersection_2_more_than_rest_depth_0(self, mock_get):
+    def test_max_intersection_2_more_than_rest(self, mock_get):
         # Fully connected, extra A-C peer and B-D peer
         # Responses from a-c, a-c, a-d, a-e, b-c, b-d, b-d, b-e
         intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1100:5000": 0}, 'e': {}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1100:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1100:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1100:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {}}, 'd': {'e': {"192.168.1.1000:5000": 0}}},
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1100:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
+            {'a': {'b': {"localhost": 0}, 'c': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}, 'd': {"192.168.1.300:5000": 0}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {"192.168.1.600:5000": 0, "192.168.1.1200:5000": 0}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {"192.168.1.800:5000": 0}, 'e': {"192.168.1.900:5000": 0}}, 'd': {'e': {"192.168.1.1000:5000": 0}}}
         ]
         side_effects = []
         for intersection_map in intersection_maps:
             res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
+            res.json = MagicMock(return_value=intersection_map)
             res.status_code = 200
             side_effects.append(res)
         mock_get.side_effect = side_effects
@@ -699,91 +583,6 @@ class TestAPI(unittest.TestCase):
         res = test_client.get('/max+intersection')
         self.assertEqual(res.get_json(), {'max_intersection': ['a', 'c'], 'peers': {"192.168.1.200:5000": 0, "192.168.1.1100:5000": 0}})
     
-    @patch('requests.get')
-    def test_max_intersection_all_equal_depth_1(self, mock_get):
-        # Fully connected, 5 quorums
-        intersection_maps = [
-            {'a': {'b': {}, 'c': {"192.168.1.200:5000": 0}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {"192.168.1.300:5000": 0}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {"192.168.1.400:5000": 0}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {"192.168.1.500:5000": 0}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {"192.168.1.600:5000": 0}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}},
-            {'a': {'b': {}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {"192.168.1.700:5000": 0}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}}
-        ]
-        side_effects = []
-        for intersection_map in intersection_maps:
-            res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
-            res.status_code = 200
-            side_effects.append(res)
-        mock_get.side_effect = side_effects
-        app = api.create_app()
-        app.config['TESTING'] = True
-        app.config['DEBUG'] = False
-        test_client = app.test_client()
-        test_client.get('/start/a/b')
-        test_client.post('/add/a', json=ADD_A_JSON)
-        test_client.post('/add/b', json=ADD_B_JSON)
-        time.sleep(1)
-        res = test_client.get('/max+intersection/1')
-        expected_intersection_map = {
-            'a': {
-                'b': {"localhost": 0}, 
-                'c': {"192.168.1.200:5000": 0}, 
-                'd': {"192.168.1.300:5000": 0}, 
-                'e': {"192.168.1.400:5000": 0}}, 
-            'b': {
-                'c': {"192.168.1.500:5000": 0}, 
-                'd': {"192.168.1.600:5000": 0}, 
-                'e': {"192.168.1.700:5000": 0}}, 
-            'c': {
-                'd': {}, 
-                'e': {}}, 
-            'd': {
-                'e': {}}
-        }
-        self.assertEqual(res.get_json(), expected_intersection_map)
-    
-    @patch('requests.get')
-    def test_max_intersection_all_equal_depth_2(self, mock_get):
-        # Fully connected, 5 quorums
-        intersection_maps = [
-            {'a': {'b': {"localhost": 0}, 'c': {}, 'd': {}, 'e': {}}, 'b': {'c': {}, 'd': {}, 'e': {}}, 'c': {'d': {}, 'e': {}}, 'd': {'e': {}}}
-        ]
-        side_effects = []
-        for intersection_map in intersection_maps:
-            res = Mock(spec=Response)
-            res.text = json.dumps(intersection_map)
-            res.status_code = 200
-            side_effects.append(res)
-        mock_get.side_effect = side_effects
-        app = api.create_app()
-        app.config['TESTING'] = True
-        app.config['DEBUG'] = False
-        test_client = app.test_client()
-        test_client.get('/start/a/b')
-        test_client.post('/add/a', json=ADD_A_JSON)
-        test_client.post('/add/b', json=ADD_B_JSON)
-        time.sleep(1)
-        res = test_client.get('/max+intersection/2')
-        expected_intersection_map = {
-            'a': {
-                'b': {"localhost": 0}, 
-                'c': {}, 
-                'd': {}, 
-                'e': {}}, 
-            'b': {
-                'c': {}, 
-                'd': {}, 
-                'e': {}}, 
-            'c': {
-                'd': {}, 
-                'e': {}}, 
-            'd': {
-                'e': {}}
-        }
-        self.assertEqual(res.get_json(), expected_intersection_map)
-    
     def test_remove_host(self):
         app = api.create_app()
         app.config['TESTING'] = True
@@ -793,12 +592,12 @@ class TestAPI(unittest.TestCase):
         test_client.post('/add/a', json=ADD_A_JSON)
         test_client.post('/add/b', json=ADD_B_JSON)
         time.sleep(1)
-        test_client.post('/remove+host', json={"remove_host": "192.168.1.300:5000"})
+        test_client.post('/remove+host', json={"host": "192.168.1.300:5000"})
         self.assertEqual(
             app.config[QUORUMS]['a'], 
             [
                 {
-                    API_IP: "192.168.1.200",
+                    API_IP: "192.168.1.200",  # ip for the API
                     PORT: "5000",
                     QUORUM_ID: "c"
                 },
@@ -806,6 +605,42 @@ class TestAPI(unittest.TestCase):
                     API_IP: "192.168.1.400",
                     PORT: "5000",
                     QUORUM_ID: "e"
+                }
+            ]
+        )
+    
+    def test_add_host(self):
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        test_client = app.test_client()
+        test_client.get('/start/a/b')
+        test_client.post('/add/a', json=ADD_A_JSON)
+        test_client.post('/add/b', json=ADD_B_JSON)
+        time.sleep(1)
+        test_client.post('/add+host', json={"host": "192.168.1.1100:5000", "quorum": "a", "host_quorum": "a"})
+        self.assertEqual(
+            app.config[QUORUMS]['a'], 
+            [
+                {
+                    API_IP: "192.168.1.200",  # ip for the API
+                    PORT: "5000",
+                    QUORUM_ID: "c"
+                },
+                {
+                    API_IP: "192.168.1.300",
+                    PORT: "5000",
+                    QUORUM_ID: "d"
+                },
+                {
+                    API_IP: "192.168.1.400",
+                    PORT: "5000",
+                    QUORUM_ID: "e"
+                },
+                {
+                    API_IP: "192.168.1.1100",
+                    PORT: "5000",
+                    QUORUM_ID: "a"
                 }
             ]
         )
