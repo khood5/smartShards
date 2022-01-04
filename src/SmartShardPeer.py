@@ -34,27 +34,25 @@ DEFAULT_PORT = 5000
 
 class SmartShardPeer:
 
-    def __init__(self, inter=None, port=DEFAULT_PORT):
+    def __init__(self, port=DEFAULT_PORT):
         self.port = port
-        self.inter = inter
         self.app = None
 
     def __del__(self):
-        del self.inter
         self.app.terminate()
         self.app.join()  # wait for app kill to fully complete
         del self.app
         smart_shard_peer_log.info('terminating API on {}'.format(self.port))
         del self.port
 
-    def start(self):
+    def start(self, inter=None):
         if self.port is None:
             smart_shard_peer_log.error('start called with no PORT')
         if self.app is not None:
             smart_shard_peer_log.error('app on {} is already running'.format(self.port))
 
         self.app = mp.Process()
-        self.app.api = create_app(self.inter)
+        self.app.api = create_app(inter, self.port)
         temp = self.app.api
         self.app = mp.Process(target=self.app.api.run, kwargs=({'port': self.port}))
         self.app.api = temp
@@ -73,16 +71,15 @@ class SmartShardPeer:
 
     def peer_port(self):
         return self.port
-
-    def check_neighbors(self, port):
-        url = "http://localhost:{port}/quoruminfo".format(port=port)
-        recv_neighbors = json.loads(requests.post(url, json={}).text)["neighbors"]
-        self.app.api.config[QUORUMS] = recv_neighbors
     
     def join_network(self, known_host):
+        logging.info(f"Peer on port {self.port} attempting to cooperatively join")
+
+        if self.app is None:
+            logging.info(f"SmartShardPeer on port {self.port} does not have an app yet, starting it now")
+            self.start()
+
         res = requests.get(f"http://{known_host}/min+intersection").json()
-        print(f"peer on port {self.port} knows min intersection")
-        print(res)
         min_intersection = res["min_intersection"]
         min_intersection_peers = list(res["peers"].keys())
         min_peer = min_intersection_peers[0]
@@ -91,47 +88,32 @@ class SmartShardPeer:
 
         id_a = min_intersection[0]
         id_b = min_intersection[1]
-
-        if len(min_intersection_peers) == 0:
-            logging.error(f"The minimum intersection has no peers, can't ask for neighbors")
-            return
         
-        a = SawtoothContainer()
-        print(f"peer a has IP: {a.ip()}")
-        b = SawtoothContainer()
-        print(f"peer b has IP: {b.ip()}")
-        self.inter = Intersection(a, b, id_a, id_b)
-        
-        if self.app is None:
-            logging.info(f"SmartShardPeer on port {self.port} does not have an app yet, starting it now")
-            self.start()
-
         min_intersection_neighbors = requests.post(f"http://{min_peer}/quoruminfo").json()["neighbors"]
+
         min_intersection_neighbors_a = min_intersection_neighbors[id_a]
         min_intersection_neighbors_a.append({API_IP: min_peer_ip, PORT: min_peer_port, QUORUM_ID: id_b})
+
         min_intersection_neighbors_b = min_intersection_neighbors[id_b]
         min_intersection_neighbors_b.append({API_IP: min_peer_ip, PORT: min_peer_port, QUORUM_ID: id_a})
 
         min_intersection_ips_a = list(set(requests.get(f"http://{min_peer}/ips/{id_a}").json()))
         min_peer_ip_a = requests.get(f'http://{min_peer}/ip/{id_a}').text
-        print(f"current ips a: {min_intersection_ips_a}")
-        print(f"self ip a: {min_peer_ip_a}")
         min_intersection_ips_a.append(f"{min_peer_ip_a}:8800")
+
         min_intersection_ips_b = list(set(requests.get(f"http://{min_peer}/ips/{id_b}").json()))
         min_peer_ip_b = requests.get(f'http://{min_peer}/ip/{id_b}').text
-        print(f"current ips b: {min_intersection_ips_b}")
-        print(f"self ip b: {min_peer_ip_b}")
         min_intersection_ips_b.append(f"{min_peer_ip_b}:8800")
 
-        print(f"HERE IS SOME IMPORTANT INFO FROM {self.port}")
-        print(min_intersection_neighbors_a)
-        print(min_intersection_neighbors_b)
-        print(min_intersection_ips_a)
-        print(min_intersection_ips_b)
-        print(len(min_intersection_neighbors_a))
-        print(len(min_intersection_neighbors_b))
-        print(len(min_intersection_ips_a))
-        print(len(min_intersection_ips_b))
+        logging.info(f"HERE IS SOME IMPORTANT INFO FROM {self.port}")
+        logging.info(min_intersection_neighbors_a)
+        logging.info(min_intersection_neighbors_b)
+        logging.info(min_intersection_ips_a)
+        logging.info(min_intersection_ips_b)
+        logging.info(len(min_intersection_neighbors_a))
+        logging.info(len(min_intersection_neighbors_b))
+        logging.info(len(min_intersection_ips_a))
+        logging.info(len(min_intersection_ips_b))
 
         join_a_json = [{**neighbors, DOCKER_IP: ip} for neighbors, ip in zip(min_intersection_neighbors_a, min_intersection_ips_a)]
         join_b_json = [{**neighbors, DOCKER_IP: ip} for neighbors, ip in zip(min_intersection_neighbors_b, min_intersection_ips_b)]
@@ -155,35 +137,50 @@ class SmartShardPeer:
 
         requests.post(f"http://{min_peer}/add+validator", json={
             "quorum_id": id_a,
-            "val_key": a.val_key()
+            "val_key": self.app.api.config[PBFT_INSTANCES].val_key(id_a)
         })
 
         time.sleep(30)
 
         requests.post(f"http://{min_peer}/add+validator", json={
             "quorum_id": id_b,
-            "val_key": b.val_key()
+            "val_key": self.app.api.config[PBFT_INSTANCES].val_key(id_b)
         })
 
         time.sleep(30)
     
     # Leave the network cooperatively
-    def leave(self):
-        logging.info("API peer on port :" + str(self.port) + " attempting to cooperatively leave.")
-        self.check_neighbors(self.port)
-        quorums = self.app.api.config[QUORUMS]
-        quorum_ids = list(quorums.keys())
+    def leave_network(self, known_host):
+        logging.info(f"Peer on port {self.port} attempting to cooperatively leave")
 
         inter = self.app.api.config[PBFT_INSTANCES]
-        instance_a = inter.instance_a
-        instance_b = inter.instance_b
         id_a = inter.committee_id_a
         id_b = inter.committee_id_b
-        val_key_a = inter.val_key(id_a)
-        val_key_b = inter.val_key(id_b)
 
-        a_leave_success = instance_a.leave_network(val_key_a)
-        b_leave_success = instance_b.leave_network(val_key_b)
+        res = requests.get(f"http://{known_host}/max+intersection").json()
+        max_intersection = res["max_intersection"]
+        max_id_a = max_intersection[0]
+        max_id_b = max_intersection[1]
+        max_intersection_peers = list(res["peers"].keys())
+        max_peer = max_intersection_peers[0]
+        max_peer_ip = max_peer.split(':')[0]
+        max_peer_port = max_peer.split(':')[1]
+
+        if max_id_a != id_a or max_id_b != id_b:
+            # Here is where we have to find a replacement
+            pass
+
+        requests.post(f"http://127.0.0.1:{self.port}/remove+validator", json={
+            "quorum_id": id_a,
+            "val_key": inter.val_key(id_a)
+        })
+
+        time.sleep(30)
+
+        requests.post(f"http://127.0.0.1:{self.port}/remove+validator", json={
+            "quorum_id": id_b,
+            "val_key": inter.val_key(id_b)
+        })
 
         if a_leave_success and b_leave_success:
             # Remove self from network
