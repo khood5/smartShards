@@ -72,7 +72,7 @@ def add_routes(app):
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         # get sawtooth container ip address
-        ips = [n.pop(DOCKER_IP) for n in app.config[QUORUMS][quorum_id]]
+        ips = [n[DOCKER_IP] for n in app.config[QUORUMS][quorum_id]]
         ips.append(app.config[PBFT_INSTANCES].ip(quorum_id))
         app.config[PBFT_INSTANCES].peer_join(quorum_id, ips)  # use sawtooth container ip to start sawtooth
         return ROUTE_EXECUTED_CORRECTLY
@@ -101,16 +101,39 @@ def add_routes(app):
         app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
 
-
-    @app.route('/quoruminfo', methods=['POST'])
-    def quoruminfo():
-        if app.config[QUORUMS]:
-            res_json = json.loads(json.dumps({
-                "neighbors": app.config[QUORUMS]
-            }))
-            return res_json
+    # Get information about all of the members of a quorum
+    # returns 
+    # { 
+    #     quorum_id: [ 
+    #         {API_IP, PORT, QUORUM_ID, DOCKER_IP},
+    #         ...
+    #     ],
+    #     ... 
+    # }
+    @app.route('/quorum+info')
+    @app.route('/quorum+info/<quorum_id>')
+    def quorum_info(quorum_id=None):
+        if quorum_id is None:
+            quorum_ids = list(app.config[QUORUMS].keys())
         else:
-            return ROUTE_EXECUTION_FAILED
+            quorum_ids = [quorum_id]
+
+        print(f"{request.host} called quorum+info with quorums={quorum_ids}")
+        
+        res = {}
+
+        for quorum_id in quorum_ids:
+            if app.config[PBFT_INSTANCES].in_committee(quorum_id):
+                res[quorum_id] = app.config[QUORUMS][quorum_id]
+                host_ip = request.host.split(":")[0]
+                host_port = str(app.config[PORT])
+                host_other_quorum_id = [possible_quorum_id for possible_quorum_id in app.config[QUORUMS].keys() if possible_quorum_id != quorum_id][0]
+                host_docker_ip = app.config[PBFT_INSTANCES].ip(quorum_id)
+                res[quorum_id].append({API_IP: host_ip, PORT: host_port, QUORUM_ID: host_other_quorum_id, DOCKER_IP: host_docker_ip})
+            else:
+                return ROUTE_EXECUTION_FAILED.format(msg=f"Peer is not in quorum {quorum_id}")
+        
+        return res
     
     @app.route('/intersection+map')
     def intersection_map():
@@ -118,6 +141,8 @@ def add_routes(app):
         id_b = app.config[PBFT_INSTANCES].committee_id_b
 
         quorum_ids = list(set([peer[QUORUM_ID] for peer in app.config[QUORUMS][id_a]] + [id_a, id_b]))
+        quorum_ids.sort()
+        print(f"ther quorum ids are {quorum_ids}")
 
         intersection_map = create_intersection_map(quorum_ids)
 
@@ -125,16 +150,21 @@ def add_routes(app):
 
         for quorum, peers in app.config[QUORUMS].items():
             for peer in peers:
+                print(f"adding {peer[API_IP]}:{peer[PORT]} to quorum {quorum} (layer 1)")
                 insert_into_intersection_map(intersection_map, f"{peer[API_IP]}:{peer[PORT]}", quorum, peer[QUORUM_ID])
 
         for peer in app.config[QUORUMS][id_a]:
-            res = requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/quoruminfo")
-            peer_neighbors = res.json()["neighbors"]
+            res = requests.get(f"http://{peer[API_IP]}:{peer[PORT]}/quorum+info")
+            peer_neighbors = res.json()
             other_quorum = {quorum: neighbors for quorum, neighbors in peer_neighbors.items() if quorum != id_a}
             for quorum, neighbors in other_quorum.items():
                 for peer in neighbors:
+                    print(f"adding {peer[API_IP]}:{peer[PORT]} to quorum {quorum} (layer 2)")
                     insert_into_intersection_map(intersection_map, f"{peer[API_IP]}:{peer[PORT]}", quorum, peer[QUORUM_ID])
         
+        print("intersection map looks like:")
+        print(intersection_map)
+
         return jsonify(intersection_map)
     
     # Recursively finds the quorums with the fewest intersections by joining intersection maps
@@ -159,15 +189,45 @@ def add_routes(app):
     # Requests to join the network in the minimum intersecting quorums
     @app.route('/request+join', methods=['POST'])
     def request_join():
-        # Find the minimum intersection
-        res_json = requests.post(f"http://{request.host}/min+intersection")
-
-        # Get the caller's IP and port, start and join them to the minimum quorums
         req_json = request.get_json()
-        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/start/{res_json['min_intersection'][0]}/{res_json['min_intersection'][1]}")
-        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json['min_intersection'][0]}")
-        requests.post(f"http://{req_json[API_IP]}:{req_json[PORT]}/join/{res_json['min_intersection'][1]}")
+        known_host = req_json["known_host"]
+        # Find the minimum intersection
+        res = requests.get(f"http://{known_host}/min+intersection").json()
+        min_intersection = res["min_intersection"]
+        min_intersection_peers = list(res["peers"].keys())
+        min_peer = min_intersection_peers[0]
+
+        id_a = min_intersection[0]
+        id_b = min_intersection[1]
         
+        min_intersection_neighbors = requests.get(f"http://{min_peer}/quorum+info").json()
+
+        join_a_json = min_intersection_neighbors[id_a]
+        join_b_json = min_intersection_neighbors[id_b]
+
+        requests.get(f"http://localhost:{app.config[PORT]}/start/{id_a}/{id_b}")
+        requests.post(f"http://localhost:{app.config[PORT]}/join/{id_a}", json={NEIGHBOURS: join_a_json})
+        requests.post(f"http://localhost:{app.config[PORT]}/join/{id_b}", json={NEIGHBOURS: join_b_json})
+
+        print("AFTER JOINING THE QUORUMS LOOKS LIKE")
+        print(app.config[QUORUMS])
+        
+        for peer in min_intersection_neighbors[id_a]:
+            requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json={"host": f"{request.host}", "host_quorum": id_b, "quorum": id_a, "docker_ip": app.config[PBFT_INSTANCES].ip(id_a)})
+        
+        for peer in min_intersection_neighbors[id_b]:
+            requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json={"host": f"{request.host}", "host_quorum": id_a, "quorum": id_b, "docker_ip": app.config[PBFT_INSTANCES].ip(id_b)})
+
+        requests.post(f"http://{min_peer}/add+validator", json={
+            "quorum_id": id_a,
+            "val_key": app.config[PBFT_INSTANCES].val_key(id_a)
+        })
+
+        requests.post(f"http://{min_peer}/add+validator", json={
+            "quorum_id": id_b,
+            "val_key": app.config[PBFT_INSTANCES].val_key(id_b)
+        })
+
         return ROUTE_EXECUTED_CORRECTLY
     
     # Recursively finds the quorums with the fewest intersections by joining intersection maps
@@ -263,21 +323,27 @@ def add_routes(app):
         else:
             return ROUTE_EXECUTION_FAILED.format(msg=f"Leaving would violate {id_a}-{id_b}'s integrity")
 
-
-    # remove neighbor from API after it leaves
-    @app.route('/remove/<remove_port>', methods=['POST'])
-    def remove(remove_port=None):
+    # add neighbor from API when it joins
+    @app.route('/add+host', methods=['POST'])
+    def add_host():
         req = get_json(request, app)
+        host = req["host"]
+        host_quorum = req["host_quorum"]
+        quorum = req["quorum"]
+        docker_ip = req["docker_ip"]
 
-        app.logger.info("Removing {q} from node {n}".format(q=remove_port, n=app))
+        split_host = host.split(":")
+        host_json = {
+            API_IP: split_host[0],
+            PORT: split_host[1],
+            QUORUM_ID: host_quorum,
+            DOCKER_IP: docker_ip
+        }
 
-        for committee_id in app.config[QUORUMS]:
-            index = 0
-            for neighbor in app.config[QUORUMS][committee_id]:
-                if str(neighbor[PORT]) == str(remove_port):
-                    del app.config[QUORUMS][committee_id][index]
-                index += 1
+        app.logger.info("Adding {q} to node {n}".format(q=host, n=app))
 
+        app.config[QUORUMS][quorum].append(host_json)
+            
         return ROUTE_EXECUTED_CORRECTLY
 
     # remove neighbor from API after it leaves
@@ -292,42 +358,6 @@ def add_routes(app):
             app.config[QUORUMS][committee_id] = [neighbor for neighbor in app.config[QUORUMS][committee_id] if (f"{neighbor[API_IP]}:{neighbor[PORT]}" != host)]
             
         return ROUTE_EXECUTED_CORRECTLY
-
-    # add neighbor from API when it joins
-    @app.route('/add+host', methods=['POST'])
-    def add_host():
-        req = get_json(request, app)
-        host = req["host"]
-        host_quorum = req["host_quorum"]
-        quorum = req["quorum"]
-
-        split_host = host.split(":")
-        host_json = {
-            API_IP: split_host[0],
-            PORT: split_host[1],
-            QUORUM_ID: host_quorum
-        }
-
-        app.logger.info("Adding {q} to node {n}".format(q=host, n=app))
-
-        app.config[QUORUMS][quorum].append(host_json)
-            
-        return ROUTE_EXECUTED_CORRECTLY
-    
-    # remove a validator from the quorum
-    @app.route('/remove+validator', methods=['POST'])
-    def remove_validator():
-        req = get_json(request, app)
-        quorum_id = req["quorum_id"]
-        remove_val_key = req["val_key"]
-        intersection = app.config[PBFT_INSTANCES]
-        if intersection.in_committee(quorum_id):
-            val_keys = intersection.get_peers(quorum_id)
-            val_keys.remove(remove_val_key)
-            intersection.update_committee(quorum_id, val_keys)
-            return ROUTE_EXECUTED_CORRECTLY
-        else:
-            return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
     
     # add a validator to the quorum
     @app.route('/add+validator', methods=['POST'])
@@ -339,8 +369,27 @@ def add_routes(app):
         if intersection.in_committee(quorum_id):
             val_keys = intersection.get_peers(quorum_id)
             val_keys.append(add_val_key)
-            intersection.update_committee(quorum_id, val_keys)
-            return ROUTE_EXECUTED_CORRECTLY
+            if intersection.update_committee(quorum_id, val_keys):
+                return ROUTE_EXECUTED_CORRECTLY
+            else:
+                return ROUTE_EXECUTION_FAILED.format(msg="Committee update failed!")
+        else:
+            return ROUTE_EXECUTION_FAILED.format(msg=f"Peer not in quorum {quorum_id}")
+    
+    # remove a validator from the quorum
+    @app.route('/remove+validator', methods=['POST'])
+    def remove_validator():
+        req = get_json(request, app)
+        quorum_id = req["quorum_id"]
+        remove_val_key = req["val_key"]
+        intersection = app.config[PBFT_INSTANCES]
+        if intersection.in_committee(quorum_id):
+            val_keys = intersection.get_peers(quorum_id)
+            val_keys.remove(remove_val_key)
+            if intersection.update_committee(quorum_id, val_keys):
+                return ROUTE_EXECUTED_CORRECTLY
+            else:
+                return ROUTE_EXECUTION_FAILED.format(msg="Committee update failed!")
         else:
             return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
         
@@ -406,7 +455,7 @@ def add_routes(app):
     @app.route('/val+keys/<quorum_id>')
     def val_keys(quorum_id):
         if app.config[PBFT_INSTANCES].in_committee(quorum_id):
-            return app.config[PBFT_INSTANCES].get_peers(quorum_id)
+            return jsonify(app.config[PBFT_INSTANCES].get_peers(quorum_id))
         else:
             return ROUTE_EXECUTION_FAILED.format(msg="peer not in quorum {}".format(quorum_id))
 

@@ -1,5 +1,5 @@
 import docker as docker_api
-from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS
+from src.api.constants import API_IP, PORT, QUORUM_ID, PBFT_INSTANCES, NEIGHBOURS, QUORUMS, DOCKER_IP
 from src.SawtoothPBFT import SawtoothContainer
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 from src.Intersection import Intersection
@@ -144,22 +144,24 @@ def make_intersecting_committees(number_of_committees: int, intersections: int):
 
 def get_neighbors(quorum, network: map):
     neighbors = []
-    for neighbor_peer_port in network:
-        neighbor_membership = [network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_a,
-                               network[neighbor_peer_port].app.api.config[PBFT_INSTANCES].committee_id_b]
+    for neighbor_port, neighbor_peer in network.items():
+        id_a = neighbor_peer.app.api.config[PBFT_INSTANCES].committee_id_a
+        id_b = neighbor_peer.app.api.config[PBFT_INSTANCES].committee_id_b
 
-        if quorum == neighbor_membership[0]:
+        if quorum == id_a:
             neighbors.append({
                 API_IP: "localhost",
-                PORT: "{}".format(neighbor_peer_port),
-                QUORUM_ID: "{}".format(neighbor_membership[1])
+                DOCKER_IP: neighbor_peer.app.api.config[PBFT_INSTANCES].ip(id_a),
+                PORT: f"{neighbor_port}",
+                QUORUM_ID: f"{id_b}"
             })
 
-        if quorum == neighbor_membership[1]:
+        if quorum == id_b:
             neighbors.append({
                 API_IP: "localhost",
-                PORT: "{}".format(neighbor_peer_port),
-                QUORUM_ID: "{}".format(neighbor_membership[0])
+                DOCKER_IP: neighbor_peer.app.api.config[PBFT_INSTANCES].ip(id_b),
+                PORT: f"{neighbor_port}",
+                QUORUM_ID: f"{id_a}"
             })
 
     return neighbors
@@ -179,15 +181,13 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
     peers = {}
     for i in inter:
         port_number = find_free_port()
-        peers[port_number] = SmartShardPeer(i, port_number)
-        peers[port_number].start()
+        peers[port_number] = SmartShardPeer(port_number)
+        peers[port_number].start(i)
 
-    for port in peers:
-        quorum_id = peers[port].app.api.config[PBFT_INSTANCES].committee_id_a
-        other_peers = {}
-        for p in peers:
-            if peers[p].port != port:
-                other_peers[p] = peers[p]
+    for port, peer in peers.items():
+        other_peers = {other_port: other_peer for other_port, other_peer in peers.items() if other_port != port}
+
+        quorum_id = peer.app.api.config[PBFT_INSTANCES].committee_id_a
         add_json = json.loads(json.dumps({
             NEIGHBOURS: get_neighbors(quorum_id, other_peers)
         }))
@@ -200,7 +200,5 @@ def make_intersecting_committees_on_host(number_of_committees: int, intersection
         }))
         url = "http://localhost:{port}/add/{quorum}".format(port=port, quorum=quorum_id)
         requests.post(url, json=add_json)
-
-        peers[port].check_neighbors(port)
 
     return peers

@@ -1,13 +1,14 @@
 from flask import Flask
 from src.api.routes import add_routes
-from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS
+from src.api.constants import SECRET, PBFT_INSTANCES, DOCKER_NETWORK, QUORUMS, PORT
 from src.SawtoothPBFT import DEFAULT_DOCKER_NETWORK
 
 
-def create_app(instances=None):
+def create_app(instances=None, port=8000):
     new_app = Flask(__name__)
     new_app.config[PBFT_INSTANCES] = instances  # holds the instances
     new_app.config[DOCKER_NETWORK] = DEFAULT_DOCKER_NETWORK  # stores the network instances are working on
+    new_app.config[PORT] = port
 
     # stores the list of neighbours and the quorums they are intersecting
     # API_IP: address of the other host

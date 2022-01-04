@@ -92,8 +92,8 @@ class TestSmartShard(unittest.TestCase):
         a = SawtoothContainer()
         b = SawtoothContainer()
         inter = Intersection(a, b, 'a', 'b')
-        peer = SmartShardPeer(inter)
-        peer.start()
+        peer = SmartShardPeer()
+        peer.start(inter)
         client = peer.app.api.test_client()
 
         docker = docker_api.from_env()
