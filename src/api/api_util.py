@@ -64,7 +64,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
 # intersections between two quorums.
 def create_intersection_map(quorum_ids):
     quorum_ids.sort()
-    return {str(a): {str(b): {} for b in quorum_ids[i+1:]} for i, a in enumerate(quorum_ids[:-1])}
+    return {str(a): {str(b): {} for b in quorum_ids[i+1:]} for i, a in enumerate(quorum_ids)}
 
 # Merge intersection maps, creating a union of the intersections.
 # Returns the resulting intersection map

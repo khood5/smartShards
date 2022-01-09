@@ -124,7 +124,7 @@ def add_routes(app):
 
         for quorum_id in quorum_ids:
             if app.config[PBFT_INSTANCES].in_committee(quorum_id):
-                res[quorum_id] = app.config[QUORUMS][quorum_id]
+                res[quorum_id] = [peer for peer in app.config[QUORUMS][quorum_id]]
                 host_ip = request.host.split(":")[0]
                 host_port = str(app.config[PORT])
                 host_other_quorum_id = [possible_quorum_id for possible_quorum_id in app.config[QUORUMS].keys() if possible_quorum_id != quorum_id][0]
@@ -142,7 +142,7 @@ def add_routes(app):
 
         quorum_ids = list(set([peer[QUORUM_ID] for peer in app.config[QUORUMS][id_a]] + [id_a, id_b]))
         quorum_ids.sort()
-        print(f"ther quorum ids are {quorum_ids}")
+        print(f"the quorum ids are {quorum_ids}")
 
         intersection_map = create_intersection_map(quorum_ids)
 
