@@ -176,7 +176,7 @@ class TestUtilMethods(unittest.TestCase):
             committee_id = peers[submit_to].committee_id_a()
             tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
             url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
-            result = requests.post(url, json=tx.to_json())
+            result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
 
             self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
             time.sleep(3)  # wait for network to confirm
@@ -190,7 +190,7 @@ class TestUtilMethods(unittest.TestCase):
             for member in committee_members:
                 tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
                 url = "http://localhost:{port}/get/".format(port=member)
-                result = requests.post(url, json=tx.to_json())
+                result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
                 self.assertEqual(str(value), get_plain_text(result))
 
             value += 1
@@ -212,7 +212,7 @@ class TestUtilMethods(unittest.TestCase):
         committee_id = peers[target].committee_id_a()
         tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
         url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
-        result = requests.post(url, json=tx.to_json())
+        result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
 
         self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
         time.sleep(3)  # wait for network to confirm
@@ -226,7 +226,7 @@ class TestUtilMethods(unittest.TestCase):
         for member in committee_members:
             tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
             url = "http://localhost:{port}/get/".format(port=member)
-            result = requests.post(url, json=tx.to_json())
+            result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
             self.assertEqual(str(value), get_plain_text(result))
 
 

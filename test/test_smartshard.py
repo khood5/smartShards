@@ -125,7 +125,7 @@ class TestSmartShard(unittest.TestCase):
         peers = make_intersecting_committees_on_host(5, 1)
         peer_ports = list(peers.keys())
 
-        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
+        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo", headers={"Connection":"close"}).json()["neighbors"]
         print("Pre-join:")
         print(res)
 
@@ -145,7 +145,7 @@ class TestSmartShard(unittest.TestCase):
         print(new_peer.inter)
         print(new_peer.app.api.config[PBFT_INSTANCES])
 
-        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo").json()["neighbors"]
+        res = requests.post(f"http://localhost:{peer_ports[0]}/quoruminfo", headers={"Connection":"close"}).json()["neighbors"]
         print("Post-join:")
         print(res)
 
@@ -169,8 +169,8 @@ class TestSmartShard(unittest.TestCase):
         print(f"new peer 1, port {new_peer_1.port}, is in {new_peer_1.inter.committee_id_a} and {new_peer_1.inter.committee_id_b}")
         print(f"new peer 2, port {new_peer_2.port}, is in {new_peer_2.inter.committee_id_a} and {new_peer_2.inter.committee_id_b}")
 
-        new_peer_1_res = res = requests.post(f"http://localhost:{new_peer_1.port}/quoruminfo").json()["neighbors"]
-        new_peer_2_res = res = requests.post(f"http://localhost:{new_peer_2.port}/quoruminfo").json()["neighbors"]
+        new_peer_1_res = res = requests.post(f"http://localhost:{new_peer_1.port}/quoruminfo", headers={"Connection":"close"}).json()["neighbors"]
+        new_peer_2_res = res = requests.post(f"http://localhost:{new_peer_2.port}/quoruminfo", headers={"Connection":"close"}).json()["neighbors"]
 
         print(f"new peer 1, neighbors are {new_peer_1_res}")
         print(f"new peer 2, neighbors are {new_peer_2_res}")

@@ -48,7 +48,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
                 app.logger.info("request in quorum this peer is not a member of forwarding to "
                                 "{}".format(url))
                 try:
-                    forwarding_request = requests.post(url, json=json_data)
+                    forwarding_request = requests.post(url, json=json_data, headers={"Connection":"close"})
                     forwarding_request = get_plain_text(forwarding_request)
                     app.logger.info("response form forward is {}".format(forwarding_request))
                     return forwarding_request
