@@ -524,6 +524,71 @@ class TestAPI(unittest.TestCase):
             ]
         }, response.json)
     
+    def test_quorum_no_self(self):
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+        client.get('/start/a/b')
+        client.post('/join/a', json=JOIN_A_JSON)
+        response = client.get('/quorum+info/a?include_self=false')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({
+            'a': [
+                {
+                    DOCKER_IP: '10.10.10.1',
+                    API_IP: '192.168.1.200',
+                    PORT: '5000',
+                    QUORUM_ID: 'c'
+                }, 
+                {
+                    DOCKER_IP: '10.10.10.2', 
+                    API_IP: '192.168.1.300', 
+                    PORT: '5000', 
+                    QUORUM_ID: 'd'
+                }, 
+                {
+                    DOCKER_IP: '10.10.10.3', 
+                    API_IP: '192.168.1.400', 
+                    PORT: '5000', 
+                    QUORUM_ID: 'e'
+                }
+            ]
+        }, response.json)
+    
+    def test_quorum_info_no_self_both(self):
+        app = api.create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        client = app.test_client()
+        client.get('/start/a/b')
+        client.post('/join/a', json=JOIN_A_JSON)
+        response = client.get('/quorum+info?include_self=false')
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({
+            'a': [
+                {
+                    DOCKER_IP: '10.10.10.1',
+                    API_IP: '192.168.1.200',
+                    PORT: '5000',
+                    QUORUM_ID: 'c'
+                }, 
+                {
+                    DOCKER_IP: '10.10.10.2', 
+                    API_IP: '192.168.1.300', 
+                    PORT: '5000', 
+                    QUORUM_ID: 'd'
+                }, 
+                {
+                    DOCKER_IP: '10.10.10.3', 
+                    API_IP: '192.168.1.400', 
+                    PORT: '5000', 
+                    QUORUM_ID: 'e'
+                }
+            ],
+            'b': []
+        }, response.json)
+    
     def test_intersection_map_utils(self):
         quorum_ids = ['a', 'b', 'c', 'd', 'e']
         intersection_map_1 = create_intersection_map(quorum_ids)
@@ -570,7 +635,7 @@ class TestAPI(unittest.TestCase):
         # Get the peers ports, and make a request to the 0th peer for the intersection map
         ports = list(peers.keys())
         known_peer = f"localhost:{ports[0]}"
-        intersection_map = requests.get(f"http://{known_peer}/intersection+map").json()
+        intersection_map = requests.get(f"http://{known_peer}/intersection+map", headers={"Connection":"close"}).json()
         print(intersection_map)
 
         # Get the quorums listed in the intersection map, make sure there are 5
@@ -813,17 +878,17 @@ class TestAPI(unittest.TestCase):
         requests.post(f"http://localhost:{known_peer.port}/remove+validator", json={
             "quorum_id": quorum_id,
             "val_key": remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id)
-        })
+        }, headers={"Connection":"close"})
 
-        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}").json()
+        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators), 7)
 
         requests.post(f"http://localhost:{known_peer.port}/add+validator", json={
             "quorum_id": quorum_id,
             "val_key": remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id)
-        })
+        }, headers={"Connection":"close"})
 
-        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}").json()
+        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators), 8)
     
     def test_request_join(self):
@@ -833,82 +898,172 @@ class TestAPI(unittest.TestCase):
         known_host = f"localhost:{port}"
 
         # Figure out the minimum intersection
-        min_intersection = requests.get(f"http://{known_host}/min+intersection").json()
+        min_intersection = requests.get(f"http://{known_host}/min+intersection", headers={"Connection":"close"}).json()
         min_quorums = min_intersection['min_intersection'] # The quorum id's of the min intersection
         min_peers = min_intersection['peers'] # The peers that are in the min intersection
         min_peer = list(min_peers.keys())[0] # The 0th peer in the min intersection
-        id_a = min_quorums[0] # Should be quorum id 0
-        id_b = min_quorums[1] # Should be quorum id 1
+        min_id_a = min_quorums[0] # Should be quorum id 0
+        min_id_b = min_quorums[1] # Should be quorum id 1
 
         # Check how many sawtooth validators each min quorum has, should be 8
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{id_a}").json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{id_b}").json()
+        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 8) # 8 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 1
 
         # Check how many API neighbors each min quorum has, should be 8
-        quorum_info = requests.get(f"http://{min_peer}/quorum+info").json()
-        self.assertEqual(len(quorum_info[id_a]), 8) # 8 in quorum 0
-        self.assertEqual(len(quorum_info[id_b]), 8) # 8 in quorum 1
+        quorum_info = requests.get(f"http://{min_peer}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a]), 8) # 8 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b]), 8) # 8 in quorum 1
 
         # Create a new SmartShardPeer object (easier to set up and join)
         peer_1 = SmartShardPeer(port=find_free_port())
         peer_1.start()
-        requests.post(f"http://localhost:{peer_1.port}/request+join", json={"known_host": known_host})
+        requests.post(f"http://localhost:{peer_1.port}/request+join", json={"known_host": known_host}, headers={"Connection":"close"})
 
         # Check how many sawtooth validators each min quorum has, should be 9 after peer 1 joins
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{id_a}").json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{id_b}").json()
+        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 9) # 9 in quorum 0
         self.assertEqual(len(validators_b), 9) # 9 in quorum 1
 
         # Check how many API neighbors each min quorum has, should be 9 after peer 1 joins
-        quorum_info = requests.get(f"http://{min_peer}/quorum+info").json()
-        self.assertEqual(len(quorum_info[id_a]), 9) # 9 in quorum 0
-        self.assertEqual(len(quorum_info[id_b]), 9) # 9 in quorum 1
+        quorum_info = requests.get(f"http://{min_peer}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a]), 9) # 9 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b]), 9) # 9 in quorum 1
         
         # Make sure that peer 1 joined the correct quorums, 0-1
-        quorum_info = requests.get(f"http://localhost:{peer_1.port}/quorum+info").json()
+        quorum_info = requests.get(f"http://localhost:{peer_1.port}/quorum+info", headers={"Connection":"close"}).json()
         self.assertEqual(list(quorum_info.keys()), min_quorums)
 
         # Figure out the new minimum intersection
-        min_intersection = requests.get(f"http://{known_host}/min+intersection").json()
+        min_intersection = requests.get(f"http://{known_host}/min+intersection", headers={"Connection":"close"}).json()
         min_quorums = min_intersection['min_intersection'] # The quorum id's of the min intersection
         min_peers = min_intersection['peers'] # The peers that are in the min intersection
         min_peer = list(min_peers.keys())[0] # The 0th peer in the min intersection
-        id_a = min_quorums[0] # Should be quorum id 0
-        id_b = min_quorums[1] # Should be quorum id 2
+        min_id_a = min_quorums[0] # Should be quorum id 0
+        min_id_b = min_quorums[1] # Should be quorum id 2
 
         # Check how many sawtooth validators each min quorum has, should be 9 and 8
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{id_a}").json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{id_b}").json()
+        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 9) # 9 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 2
 
         # Check how many API neighbors each min quorum has, should be 9 and 8
-        quorum_info = requests.get(f"http://{min_peer}/quorum+info").json()
-        self.assertEqual(len(quorum_info[id_a]), 9) # 9 in quorum 0
-        self.assertEqual(len(quorum_info[id_b]), 8) # 8 in quorum 2
+        quorum_info = requests.get(f"http://{min_peer}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a]), 9) # 9 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b]), 8) # 8 in quorum 2
 
         # Create a new SmartShardPeer object (easier to set up and join)
         peer_2 = SmartShardPeer(port=find_free_port())
         peer_2.start()
-        requests.post(f"http://localhost:{peer_2.port}/request+join", json={"known_host": known_host})
+        requests.post(f"http://localhost:{peer_2.port}/request+join", json={"known_host": known_host}, headers={"Connection":"close"})
 
         # Check how many sawtooth validators each min quorum has, should be 10 and 9 after peer 2 joins
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{id_a}").json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{id_b}").json()
+        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 10) # 10 in quorum 0
         self.assertEqual(len(validators_b), 9) # 9 in quorum 2
 
         # Check how many API neighbors each min quorum has, should be 10 and 9 after peer 2 joins
-        quorum_info = requests.get(f"http://{min_peer}/quorum+info").json()
-        self.assertEqual(len(quorum_info[id_a]), 10) # 10 in quorum 0
-        self.assertEqual(len(quorum_info[id_b]), 9) # 9 in quorum 2
+        quorum_info = requests.get(f"http://{min_peer}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a]), 10) # 10 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b]), 9) # 9 in quorum 2
         
         # Make sure that peer 2 joined the correct quorums, 0-2
-        quorum_info = requests.get(f"http://localhost:{peer_2.port}/quorum+info").json()
+        quorum_info = requests.get(f"http://localhost:{peer_2.port}/quorum+info", headers={"Connection":"close"}).json()
         self.assertEqual(list(quorum_info.keys()), min_quorums)
+    
+    def test_request_leave(self):
+        # Create 5 quorums, 2 peers per intersection, 8 peers per quorum
+        peers = make_intersecting_committees_on_host(5, 2)
+        known_peer = list(peers.values())[0]
+
+        # Figure out the minimum intersection
+        min_intersection_0_1 = requests.get(f"http://localhost:{known_peer.port}/min+intersection", headers={"Connection":"close"}).json()
+        min_quorums_0_1 = min_intersection_0_1['min_intersection'] # The quorum id's of the min intersection
+        min_peers_0_1 = min_intersection_0_1['peers'] # The peers that are in the min intersection
+        min_peer_0_1 = list(min_peers_0_1.keys())[0] # The 0th peer in the min intersection
+        min_id_a_0_1 = min_quorums_0_1[0] # Should be quorum id 0
+        min_id_b_0_1 = min_quorums_0_1[1] # Should be quorum id 1
+
+        # Check how many sawtooth validators each min quorum has, should be 8
+        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
+        self.assertEqual(len(validators_a), 8) # 8 in quorum 0
+        self.assertEqual(len(validators_b), 8) # 8 in quorum 1
+
+        # Check how many API neighbors each min quorum has, should be 8
+        quorum_info = requests.get(f"http://{min_peer_0_1}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a_0_1]), 8) # 8 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b_0_1]), 8) # 8 in quorum 1
+
+        # Create a new SmartShardPeer object (easier to set up and join)
+        join_peer = SmartShardPeer(port=find_free_port())
+        join_peer.start()
+        requests.post(f"http://localhost:{join_peer.port}/request+join", json={"known_host": f"localhost:{known_peer.port}"}, headers={"Connection":"close"})
+
+        # Check how many sawtooth validators each min quorum has, should be 9 after peer 1 joins
+        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
+        self.assertEqual(len(validators_a), 9) # 9 in quorum 0
+        self.assertEqual(len(validators_b), 9) # 9 in quorum 1
+
+        # Check how many API neighbors each min quorum has, should be 9 after join_peer joins
+        quorum_info = requests.get(f"http://{min_peer_0_1}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a_0_1]), 9) # 9 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b_0_1]), 9) # 9 in quorum 1
+        
+        # Make sure that join_peer joined the correct quorums, 0-1
+        quorum_info = requests.get(f"http://localhost:{join_peer.port}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(list(quorum_info.keys()), min_quorums_0_1)
+
+        # Figure out the new minimum intersection
+        min_intersection_0_2 = requests.get(f"http://localhost:{known_peer.port}/min+intersection", headers={"Connection":"close"}).json()
+        min_quorums_0_2 = min_intersection_0_2['min_intersection'] # The quorum id's of the min intersection
+        min_peers_0_2 = min_intersection_0_2['peers'] # The peers that are in the min intersection
+        min_peer_0_2 = list(min_peers_0_2.keys())[0] # The 0th peer in the min intersection
+        min_id_a_0_2 = min_quorums_0_2[0] # Should be quorum id 0
+        min_id_b_0_2 = min_quorums_0_2[1] # Should be quorum id 2
+
+        # A peer in 0-2 wants to leave, should be replaced by a peer in 0-1
+        res = requests.post(f"http://{min_peer_0_2}/request+leave", headers={"Connection":"close"})
+        self.assertEqual(res.text, ROUTE_EXECUTED_CORRECTLY)
+
+        # Check how many sawtooth validators 0 and 1 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
+        validators_a = requests.get(f"http://localhost:{join_peer.port}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"})
+        validators_b = requests.get(f"http://localhost:{join_peer.port}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"})
+        print(validators_a.text)
+        print(validators_b.text)
+        self.assertEqual(len(validators_a.json()), 8) # 8 in quorum 0
+        self.assertEqual(len(validators_b.json()), 8) # 8 in quorum 1
+
+        # Check how many API neighbors 0 and 1 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
+        quorum_info = requests.get(f"http://localhost:{join_peer.port}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a_0_1]), 8) # 8 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b_0_1]), 8) # 8 in quorum 1
+
+        # Check how many sawtooth validators 0 and 2 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
+        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_2}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_2}", headers={"Connection":"close"}).json()
+        self.assertEqual(len(validators_a), 8) # 8 in quorum 0
+        self.assertEqual(len(validators_b), 8) # 8 in quorum 2
+
+        # Check how many API neighbors 0 and 2 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
+        quorum_info = requests.get(f"http://{min_peer_0_1}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(len(quorum_info[min_id_a_0_2]), 8) # 8 in quorum 0
+        self.assertEqual(len(quorum_info[min_id_b_0_2]), 8) # 8 in quorum 2
+        
+        # Make sure that the replacement joined the correct quorums, 0-1
+        quorum_info = requests.get(f"http://{min_peer_0_1}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(list(quorum_info.keys()), min_quorums_0_2)
+        
+        # Make sure that the leaving peer is cleared out
+        quorum_info = requests.get(f"http://{min_peer_0_2}/quorum+info", headers={"Connection":"close"}).json()
+        self.assertEqual(list(quorum_info.keys()), [])
+
+        
 
 if __name__ == "__main__":
     unittest.main()
