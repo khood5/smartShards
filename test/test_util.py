@@ -150,9 +150,9 @@ class TestUtilMethods(unittest.TestCase):
                                     {API_IP: "192.168.1.300", PORT: "5000", QUORUM_ID: "d"},
                                     {API_IP: "192.168.1.400", PORT: "5000", QUORUM_ID: "e"}]
         mock_post.return_value = '<Response [200]>'
-        forward(app, 'submit/', 'c', TRANSACTION_C_JSON)
+        forward(app, '/submit', 'c', TRANSACTION_C_JSON)
         self.assertEqual(2, len(mock_post.call_args))
-        self.assertEqual('http://192.168.1.200:5000/submit/', mock_post.call_args[0][0])
+        self.assertEqual('http://192.168.1.200:5000/submit', mock_post.call_args[0][0])
         self.assertEqual(TRANSACTION_C_JSON, mock_post.call_args[1]['json'])
 
     def test_intersecting_committees_on_host(self):
@@ -175,7 +175,7 @@ class TestUtilMethods(unittest.TestCase):
             submit_to = p
             committee_id = peers[submit_to].committee_id_a()
             tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
-            url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
+            url = "http://localhost:{port}/submit".format(port=peers[submit_to].port)
             result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
 
             self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
@@ -189,7 +189,7 @@ class TestUtilMethods(unittest.TestCase):
 
             for member in committee_members:
                 tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
-                url = "http://localhost:{port}/get/".format(port=member)
+                url = "http://localhost:{port}/get".format(port=member)
                 result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
                 self.assertEqual(str(value), get_plain_text(result))
 
@@ -211,7 +211,7 @@ class TestUtilMethods(unittest.TestCase):
 
         committee_id = peers[target].committee_id_a()
         tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
-        url = "http://localhost:{port}/submit/".format(port=peers[submit_to].port)
+        url = "http://localhost:{port}/submit".format(port=peers[submit_to].port)
         result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
 
         self.assertEqual(ROUTE_EXECUTED_CORRECTLY, get_plain_text(result))
@@ -225,7 +225,7 @@ class TestUtilMethods(unittest.TestCase):
 
         for member in committee_members:
             tx = Transaction(quorum=committee_id, key="test_{}".format(value), value=str(value))
-            url = "http://localhost:{port}/get/".format(port=member)
+            url = "http://localhost:{port}/get".format(port=member)
             result = requests.post(url, json=tx.to_json(), headers={"Connection":"close"})
             self.assertEqual(str(value), get_plain_text(result))
 

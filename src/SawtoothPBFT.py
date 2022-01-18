@@ -182,7 +182,8 @@ class SawtoothContainer:
             logging.error("{}: UPDATE FAILED".format(self.ip()))
         return False
 
-    def get_ips(self):
+    # Gets a list of all committee members' IPs
+    def get_committee_ips(self):
         result = (json.dumps(json.loads(self.run_command(SAWTOOTH_GET_IPS_COMMAND))).replace('\\', "")).replace("tcp://", "")
         list_start = result.find("[")
         ips_str = (result[list_start:])
@@ -190,18 +191,18 @@ class SawtoothContainer:
         ips = json.loads(ips_str)
         return ips
 
-    # Gets a list of all peers' validator keys
-    def get_peers(self):
+    # Gets a list of all committee members' validator keys
+    def get_committee_val_keys(self):
         result = json.dumps(json.loads(self.run_command(SAWTOOTH_GET_PEERS_COMMAND))["settings"]["sawtooth.consensus.pbft.members"]).replace('\\', "")
         list_start = result.find("[")
-        peers_str = (result[list_start:])[:-1]
+        val_keys_str = (result[list_start:])[:-1]
 
-        peers = json.loads(peers_str)
-        return peers
+        val_keys = json.loads(val_keys_str)
+        return val_keys
     
     # Notifies other peers of intention to leave
     def leave_network(self, val_key):
-        peers = self.get_peers()
+        peers = self.get_committee_val_keys()
         initial_size = len(peers)
         new_network = []
 
@@ -216,7 +217,7 @@ class SawtoothContainer:
         return self.update_committee(new_network, stop_on_failure=True)
 
     def rejoin_network(self):
-        ips = self.get_ips()
+        ips = self.get_committee_ips()
         self.join_sawtooth(ips)
 
     def __update_on_chain_settings(self, command: str):
