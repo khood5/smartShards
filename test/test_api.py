@@ -434,11 +434,11 @@ class TestAPI(unittest.TestCase):
         for p in peers:
             p.post('/join/a', json=data)
 
-        peers[0].post('/submit/', json=TRANSACTION_A_JSON)
+        peers[0].post('/submit', json=TRANSACTION_A_JSON)
         time.sleep(3)
 
         for p in peers:
-            self.assertEqual('999', get_plain_text(p.post('/get/', json=TRANSACTION_A_JSON)))
+            self.assertEqual('999', get_plain_text(p.post('/get', json=TRANSACTION_A_JSON)))
     
     def test_quorum_info(self):
         app = api.create_app()
@@ -875,12 +875,21 @@ class TestAPI(unittest.TestCase):
         known_peer = peers[ports[1]]
         quorum_id = remove_peer.app.api.config[PBFT_INSTANCES].committee_id_a
 
+        # requests.post(f"http://localhost:{known_peer.port}/remove+validator", json={
+        #     "quorum_id": quorum_id,
+        #     "val_key": remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id)
+        # }, headers={"Connection":"close"})
+
+        requested_val_key = requests.get(f"http://localhost:{remove_peer.port}/val+key/{quorum_id}").text
+
         requests.post(f"http://localhost:{known_peer.port}/remove+validator", json={
             "quorum_id": quorum_id,
-            "val_key": remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id)
+            "val_key": requested_val_key
         }, headers={"Connection":"close"})
 
-        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}", headers={"Connection":"close"}).json()
+        self.assertEqual(requested_val_key, remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id))
+
+        validators = requests.get(f"http://localhost:{known_peer.port}/committee+val+keys/{quorum_id}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators), 7)
 
         requests.post(f"http://localhost:{known_peer.port}/add+validator", json={
@@ -888,7 +897,7 @@ class TestAPI(unittest.TestCase):
             "val_key": remove_peer.app.api.config[PBFT_INSTANCES].val_key(quorum_id)
         }, headers={"Connection":"close"})
 
-        validators = requests.get(f"http://localhost:{known_peer.port}/val+keys/{quorum_id}", headers={"Connection":"close"}).json()
+        validators = requests.get(f"http://localhost:{known_peer.port}/committee+val+keys/{quorum_id}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators), 8)
     
     def test_request_join(self):
@@ -906,8 +915,8 @@ class TestAPI(unittest.TestCase):
         min_id_b = min_quorums[1] # Should be quorum id 1
 
         # Check how many sawtooth validators each min quorum has, should be 8
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 8) # 8 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 1
 
@@ -922,8 +931,8 @@ class TestAPI(unittest.TestCase):
         requests.post(f"http://localhost:{peer_1.port}/request+join", json={"known_host": known_host}, headers={"Connection":"close"})
 
         # Check how many sawtooth validators each min quorum has, should be 9 after peer 1 joins
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 9) # 9 in quorum 0
         self.assertEqual(len(validators_b), 9) # 9 in quorum 1
 
@@ -945,8 +954,8 @@ class TestAPI(unittest.TestCase):
         min_id_b = min_quorums[1] # Should be quorum id 2
 
         # Check how many sawtooth validators each min quorum has, should be 9 and 8
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 9) # 9 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 2
 
@@ -961,8 +970,8 @@ class TestAPI(unittest.TestCase):
         requests.post(f"http://localhost:{peer_2.port}/request+join", json={"known_host": known_host}, headers={"Connection":"close"})
 
         # Check how many sawtooth validators each min quorum has, should be 10 and 9 after peer 2 joins
-        validators_a = requests.get(f"http://{min_peer}/val+keys/{min_id_a}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer}/val+keys/{min_id_b}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_a}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer}/committee+val+keys/{min_id_b}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 10) # 10 in quorum 0
         self.assertEqual(len(validators_b), 9) # 9 in quorum 2
 
@@ -987,10 +996,12 @@ class TestAPI(unittest.TestCase):
         min_peer_0_1 = list(min_peers_0_1.keys())[0] # The 0th peer in the min intersection
         min_id_a_0_1 = min_quorums_0_1[0] # Should be quorum id 0
         min_id_b_0_1 = min_quorums_0_1[1] # Should be quorum id 1
+        self.assertEqual(min_id_a_0_1, '0')
+        self.assertEqual(min_id_b_0_1, '1')
 
         # Check how many sawtooth validators each min quorum has, should be 8
-        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 8) # 8 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 1
 
@@ -1005,8 +1016,8 @@ class TestAPI(unittest.TestCase):
         requests.post(f"http://localhost:{join_peer.port}/request+join", json={"known_host": f"localhost:{known_peer.port}"}, headers={"Connection":"close"})
 
         # Check how many sawtooth validators each min quorum has, should be 9 after peer 1 joins
-        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_a_0_1}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_b_0_1}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 9) # 9 in quorum 0
         self.assertEqual(len(validators_b), 9) # 9 in quorum 1
 
@@ -1026,16 +1037,16 @@ class TestAPI(unittest.TestCase):
         min_peer_0_2 = list(min_peers_0_2.keys())[0] # The 0th peer in the min intersection
         min_id_a_0_2 = min_quorums_0_2[0] # Should be quorum id 0
         min_id_b_0_2 = min_quorums_0_2[1] # Should be quorum id 2
+        self.assertEqual(min_id_a_0_2, '0')
+        self.assertEqual(min_id_b_0_2, '2')
 
         # A peer in 0-2 wants to leave, should be replaced by a peer in 0-1
         res = requests.post(f"http://{min_peer_0_2}/request+leave", headers={"Connection":"close"})
         self.assertEqual(res.text, ROUTE_EXECUTED_CORRECTLY)
 
         # Check how many sawtooth validators 0 and 1 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
-        validators_a = requests.get(f"http://localhost:{join_peer.port}/val+keys/{min_id_a_0_1}", headers={"Connection":"close"})
-        validators_b = requests.get(f"http://localhost:{join_peer.port}/val+keys/{min_id_b_0_1}", headers={"Connection":"close"})
-        print(validators_a.text)
-        print(validators_b.text)
+        validators_a = requests.get(f"http://localhost:{join_peer.port}/committee+val+keys/{min_id_a_0_1}", headers={"Connection":"close"})
+        validators_b = requests.get(f"http://localhost:{join_peer.port}/committee+val+keys/{min_id_b_0_1}", headers={"Connection":"close"})
         self.assertEqual(len(validators_a.json()), 8) # 8 in quorum 0
         self.assertEqual(len(validators_b.json()), 8) # 8 in quorum 1
 
@@ -1045,8 +1056,8 @@ class TestAPI(unittest.TestCase):
         self.assertEqual(len(quorum_info[min_id_b_0_1]), 8) # 8 in quorum 1
 
         # Check how many sawtooth validators 0 and 2 have, should be 8 after a 0-2 peer leaves and is replaced by a 0-1 peer
-        validators_a = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_a_0_2}", headers={"Connection":"close"}).json()
-        validators_b = requests.get(f"http://{min_peer_0_1}/val+keys/{min_id_b_0_2}", headers={"Connection":"close"}).json()
+        validators_a = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_a_0_2}", headers={"Connection":"close"}).json()
+        validators_b = requests.get(f"http://{min_peer_0_1}/committee+val+keys/{min_id_b_0_2}", headers={"Connection":"close"}).json()
         self.assertEqual(len(validators_a), 8) # 8 in quorum 0
         self.assertEqual(len(validators_b), 8) # 8 in quorum 2
 

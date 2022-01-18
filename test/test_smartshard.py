@@ -177,12 +177,12 @@ class TestSmartShard(unittest.TestCase):
 
         for quorum, neighbors in new_peer_1_res.items():
             print(f"peer 1 has {len(neighbors)} API neighbors {neighbors} in quorum {quorum}")
-            docker_peers = new_peer_1.inter.get_ips(quorum)
+            docker_peers = new_peer_1.inter.get_committee_ips(quorum)
             print(f"peer 1 has {len(docker_peers)} docker peers {docker_peers} in quorum {quorum}")
 
         for quorum, neighbors in new_peer_2_res.items():
             print(f"peer 2 has {len(neighbors)} API neighbors in quorum {quorum}")
-            docker_peers = new_peer_2.inter.get_ips(quorum)
+            docker_peers = new_peer_2.inter.get_committee_ips(quorum)
             print(f"peer 2 has {len(docker_peers)} docker peers {docker_peers} in quorum {quorum}")
         
         time.sleep(5)

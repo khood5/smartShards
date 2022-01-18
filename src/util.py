@@ -22,7 +22,6 @@ logging.basicConfig(
 util_logger = logging.getLogger(__name__)
 
 LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-URL_REQUEST = "http://{hostname}:{port}/"
 
 
 def util_log_to(path, console_logging=False):

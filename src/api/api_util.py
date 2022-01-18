@@ -11,7 +11,6 @@ logging.basicConfig(
 api_util_logger = logging.getLogger(__name__)
 
 LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
-URL_REQUEST = "http://{hostname}:{port}/"
 
 
 def util_log_to(path, console_logging=False):
@@ -42,8 +41,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
         for intersecting_quorum in app.config[QUORUMS][check_quorum_id]:
             intersecting_quorum_id = intersecting_quorum[QUORUM_ID]
             if intersecting_quorum_id == quorum_id:
-                url = URL_REQUEST.format(hostname=intersecting_quorum[API_IP],
-                                        port=intersecting_quorum[PORT])
+                url = f"http://{intersecting_quorum[API_IP]}:{intersecting_quorum[PORT]}"
                 url += url_subdirectory
                 app.logger.info("request in quorum this peer is not a member of forwarding to "
                                 "{}".format(url))
@@ -64,6 +62,7 @@ def forward(app, url_subdirectory: str, quorum_id: str, json_data):
 # intersections between two quorums.
 def create_intersection_map(quorum_ids):
     quorum_ids.sort()
+    logging.info(f"Creating intersection map with quorums {quorum_ids}")
     return {str(a): {str(b): {} for b in quorum_ids[i+1:]} for i, a in enumerate(quorum_ids)}
 
 # Merge intersection maps, creating a union of the intersections.
@@ -84,6 +83,7 @@ def merge_intersection_maps(map_a, map_b):
 # Inserts a peer into an intersection map, automatically sorting ther quorums
 # Returns nothing, alters the given map
 def insert_into_intersection_map(map, peer, quorum_a, quorum_b):
+    logging.info(f"adding {peer} to {quorum_a}-{quorum_b}")
     if quorum_a <= quorum_b:
         map[quorum_a][quorum_b][peer] = 0
     else:
