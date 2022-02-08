@@ -9,6 +9,7 @@ SECRET = 'SECRET_KEY'
 PBFT_INSTANCES = 'instances'
 DOCKER_NETWORK = 'network'
 QUORUM_ID = 'quorum_id'
+QUORUM_IDS = 'quorum_ids'
 QUORUM_MEMBERS = 'quorum_members'
 QUORUMS = 'quorums'
 ROUTE_EXECUTED_CORRECTLY = "SUCCESS!"

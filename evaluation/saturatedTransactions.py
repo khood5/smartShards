@@ -150,7 +150,7 @@ def check_submitted_tx(confirmed, sub, urlJsonList, startTime, timeEnd, unconfir
     for r in sub:
         notyetconfirmedtxs.append(r)
     for tx in yetToBeConfirmedTXs:
-        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get/")
+        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get")
         jsonTxt = tx[1].to_json()
         unconfirmed.append(url, jsonTxt)
     for r in notyetconfirmedtxs:
@@ -211,7 +211,7 @@ def createTXs(txNumber, listOfTuples, committee_ids, submittedTxList, peerList, 
         tx = Transaction(quorum=choice(committee_ids), key="tx_{}".format(n), value="{}".format(999))
         selectedPeer = choice(peerQuorumList[tx.quorum_id])
         submittedTx.append((time.time(), tx, selectedPeer))
-        url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected[0]) + "/submit/"
+        url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected[0]) + "/submit"
         urlTXTuples.append((url, tx))
         n += 1
         poppedPeer = peerSelected.popleft()
@@ -237,7 +237,7 @@ def getTxs(urlJsonList):
 def createUrlJsonList(sub):
     urlJsonList = []
     for tx in sub:
-        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get/")
+        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get")
         jsonTxt = tx[1].to_json()
         urlJsonList.append((url, jsonTxt))
     return urlJsonList

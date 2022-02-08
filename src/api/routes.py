@@ -1,6 +1,6 @@
 import json
 
-from src.api.constants import NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID, QUORUM_MEMBERS, MIN_QUORUM_PEERS
+from src.api.constants import DOCKER_NETWORK, NEIGHBOURS, PBFT_INSTANCES, QUORUMS, ROUTE_EXECUTED_CORRECTLY, PORT, QUORUM_ID, QUORUM_IDS, QUORUM_MEMBERS, MIN_QUORUM_PEERS, TRANSACTION_KEY, TRANSACTION_VALUE
 from src.api.constants import ROUTE_EXECUTION_FAILED, API_IP, VALIDATOR_KEY, USER_KEY, DOCKER_IP
 from src.SawtoothPBFT import SawtoothContainer
 from src.Intersection import Intersection
@@ -11,6 +11,7 @@ import socket
 import requests
 import logging
 import os
+import time
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -38,21 +39,6 @@ def get_json(request, app):
     return req
 
 def add_routes(app):
-    # return info about the system flask is running on
-    @app.route('/')
-    @app.route('/info/')
-    @app.route('/info/<quorum_id>')
-    def info(quorum_id=None):
-        ip = socket.gethostbyname(socket.gethostname())
-        port = request.host.split(':')[1]
-        if app.config[PBFT_INSTANCES] is not None:
-            if app.config[PBFT_INSTANCES].in_committee(quorum_id):
-                quorum_members = len(app.config[QUORUMS][quorum_id]) + 1
-                system_info = {API_IP: ip, PORT: port, QUORUM_ID: quorum_id, QUORUM_MEMBERS: quorum_members}
-                return jsonify(system_info)
-
-        system_info = {API_IP: ip, PORT: port, QUORUM_ID: None}
-        return jsonify(system_info)
 
     # stat sawtooth for quorum id
     @app.route('/start/<quorum_id_a>/<quorum_id_b>')
@@ -119,6 +105,26 @@ def add_routes(app):
         # store neighbour info in app
         app.config[QUORUMS][quorum_id] = neighbours
         return ROUTE_EXECUTED_CORRECTLY
+    
+    # Get information about all of the called peer
+    # Return format 
+    # { 
+    #     API_IP,
+    #     PORT,
+    #     QUORUM_IDS,
+    #     DOCKER_NETWORK
+    # }
+    @app.route('/self+info')
+    def self_info():
+        ip = socket.gethostbyname(socket.gethostname())
+        port = app.config[PORT]
+
+        quorum_ids = []
+        if app.config[PBFT_INSTANCES] is not None:
+            quorum_ids = app.config[PBFT_INSTANCES].quorum_ids()
+
+        system_info = {API_IP: ip, PORT: port, QUORUM_IDS: quorum_ids, DOCKER_NETWORK: app.config[PBFT_INSTANCES].attached_network()}
+        return jsonify(system_info)
 
     # Get information about all of the members of a quorum
     # Return format 
@@ -320,9 +326,12 @@ def add_routes(app):
         join_b_json = min_intersection_neighbors[min_id_b]
 
         # Start the new peer and join each of the min quorums
-        requests.get(f"http://localhost:{app.config[PORT]}/start/{min_id_a}/{min_id_b}", headers={"Connection":"close"})
-        requests.post(f"http://localhost:{app.config[PORT]}/join/{min_id_a}", json={NEIGHBOURS: join_a_json}, headers={"Connection":"close"})
-        requests.post(f"http://localhost:{app.config[PORT]}/join/{min_id_b}", json={NEIGHBOURS: join_b_json}, headers={"Connection":"close"})
+        requests.get(f"http://{request.host}/start/{min_id_a}/{min_id_b}", headers={"Connection":"close"})
+        requests.post(f"http://{request.host}/join/{min_id_a}", json={NEIGHBOURS: join_a_json}, headers={"Connection":"close"})
+        requests.post(f"http://{request.host}/join/{min_id_b}", json={NEIGHBOURS: join_b_json}, headers={"Connection":"close"})
+
+        # Wait to make sure the peer is caught up CHANGE THIS LATER
+        time.sleep(10)
 
         # Collect the new peer's info for adding it to its neighbor APIs in min quorum a
         peer_json_a = {
@@ -333,7 +342,12 @@ def add_routes(app):
         }
 
         # For every peer in min quorum a, add the new peer as a neighbor
+        print(f"we are going to add {request.host} as a host to all of {[f'{peer[API_IP]}:{peer[PORT]}' for peer in min_intersection_neighbors[min_id_a]]} ({min_id_a})")
         for peer in min_intersection_neighbors[min_id_a]:
+            print(f"calling self+info for {peer[API_IP]}:{peer[PORT]}")
+            info = requests.get(f"http://{peer[API_IP]}:{peer[PORT]}/self+info", headers={"Connection":"close"})
+            print(f"self+info is {info.json()}")
+            print(f"calling add+host for {peer[API_IP]}:{peer[PORT]}")
             requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json=peer_json_a, headers={"Connection":"close"})
         
         # Collect the new peer's info for adding it to its neighbor APIs in min quorum b
@@ -345,19 +359,24 @@ def add_routes(app):
         }
 
         # For every peer in min quorum b, add the new peer as a neighbor
+        print(f"we are going to add {request.host} as a host to all of {[f'{peer[API_IP]}:{peer[PORT]}' for peer in min_intersection_neighbors[min_id_b]]} ({min_id_b})")
         for peer in min_intersection_neighbors[min_id_b]:
+            print(f"calling self+info for {peer[API_IP]}:{peer[PORT]}")
+            info = requests.get(f"http://{peer[API_IP]}:{peer[PORT]}/self+info", headers={"Connection":"close"})
+            print(f"self+info is {info.json()}")
+            print(f"calling add+host for {peer[API_IP]}:{peer[PORT]}")
             requests.post(f"http://{peer[API_IP]}:{peer[PORT]}/add+host", json=peer_json_b, headers={"Connection":"close"})
 
         # Use the min peer to add the new peer's a sawtooth as a validator
         requests.post(f"http://{min_peer}/add+validator", json={
             "quorum_id": min_id_a,
-            "val_key": app.config[PBFT_INSTANCES].val_key(min_id_a)
+            "val_key": requests.get(f"http://{request.host}/val+key/{min_id_a}", headers={"Connection":"close"}).text
         }, headers={"Connection":"close"})
 
         # Use the min peer to add the new peer's b sawtooth as a validator
         requests.post(f"http://{min_peer}/add+validator", json={
             "quorum_id": min_id_b,
-            "val_key": app.config[PBFT_INSTANCES].val_key(min_id_b)
+            "val_key": requests.get(f"http://{request.host}/val+key/{min_id_b}", headers={"Connection":"close"}).text
         }, headers={"Connection":"close"})
 
         return ROUTE_EXECUTED_CORRECTLY
@@ -374,6 +393,7 @@ def add_routes(app):
         res = requests.get(f"http://{request.host}/max+intersection", headers={"Connection":"close"}).json()
         max_intersection = res["max_intersection"]
         max_intersection_peers = list(res["peers"].keys())
+        logging.info(f"Inside of request+leave, we think max intersection is {max_intersection} with peers {max_intersection_peers}")
 
         # This is our replacement
         max_peer = max_intersection_peers[0]
@@ -573,7 +593,10 @@ def add_routes(app):
                 # If the update was successful, log it and return
                 logging.info(f"Trying to add {add_val_key} to quorum {quorum_id}, attempts left = {attempts_left}")
                 if intersection.update_committee(quorum_id, val_keys):
-                    logging.info(f"Validator {add_val_key} added to quorum {quorum_id}!")
+                    logging.info(f"Validator {add_val_key} added to quorum {quorum_id}! Sending dummy TX")
+                    time.sleep(10)
+                    requests.post(f"http://{request.host}/submit", json={QUORUM_ID: quorum_id, TRANSACTION_KEY: "catchup", TRANSACTION_VALUE: "999"}, headers={"Connection":"close"})
+                    time.sleep(10)
                     return ROUTE_EXECUTED_CORRECTLY
                 
                 # Decrement the number of attempts left
@@ -620,7 +643,10 @@ def add_routes(app):
                 # If the update was successful, log it and return
                 logging.info(f"Trying to remove {remove_val_key} from quorum {quorum_id}, attempts left = {attempts_left}")
                 if intersection.update_committee(quorum_id, val_keys):
-                    logging.info(f"Validator {remove_val_key} removed from quorum {quorum_id}!")
+                    logging.info(f"Validator {remove_val_key} removed from quorum {quorum_id}! Sending dummy TX")
+                    time.sleep(10)
+                    requests.post(f"http://{request.host}/submit", json={QUORUM_ID: quorum_id, TRANSACTION_KEY: "catchup", TRANSACTION_VALUE: "999"}, headers={"Connection":"close"})
+                    time.sleep(10)
                     return ROUTE_EXECUTED_CORRECTLY
                 
                 # Decrement the number of attempts left
