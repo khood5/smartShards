@@ -44,7 +44,7 @@ docker rm $(docker ps -a -q)
 
 Formatted JSON output for blocks:
 import json
-url = URL_HOST.format(ip=IP_ADDRESS, port='peerDict'['portNumber']) + "/blocks/"
+url = URL_HOST.format(ip=IP_ADDRESS, port='peerDict'['portNumber']) + "/blocks"
 //get results from peer, save it as your_json
 parsed = json.loads('your_json')
 print(json.dumps(parsed, indent=4, sort_keys=True))

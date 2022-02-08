@@ -82,7 +82,7 @@ def run_experiment(peers: dict, total_tx: int):
                              value="{}".format(999))
             number_of_submitted_tx += 1
             submitted_tx[time.time()] = tx
-            url = URL_HOST.format(ip=IP_ADDRESS, port=choice(list(peers.keys()))) + "/submit/"
+            url = URL_HOST.format(ip=IP_ADDRESS, port=choice(list(peers.keys()))) + "/submit"
             requests.post(url, json=tx.to_json())
 
             # show that experiment is running
@@ -94,7 +94,7 @@ def run_experiment(peers: dict, total_tx: int):
 
 
 def check_submitted_tx(waiting, sub, port):
-    url = URL_HOST.format(ip=IP_ADDRESS, port=str(port) + "/get/")
+    url = URL_HOST.format(ip=IP_ADDRESS, port=str(port) + "/get")
     remove_from_sub = []
     for tx in sub:
         if sub[tx].value == get_plain_text(requests.post(url, json=sub[tx].to_json())):

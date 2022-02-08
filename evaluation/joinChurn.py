@@ -13,13 +13,14 @@ from src.SawtoothPBFT import sawtooth_container_log_to
 from src.SmartShardPeer import smart_shard_peer_log_to, SmartShardPeer
 from src.api.api_util import get_plain_text
 from src.api.routes import api_log_to
+from src.api.constants import PBFT_INSTANCES
 from src.structures import Transaction
 from src.util import make_intersecting_committees_on_host, find_free_port
 
 # Defaults
 NUMBER_OF_TX = 7
-NUMBER_OF_COMMITTEES = 5
-INTERSECTION_SIZES = [2, 4, 6]
+NUMBER_OF_COMMITTEES = 2
+INTERSECTION_SIZES = [8]
 JOIN_INTERVALS = [3, 6, 9]
 NUMBER_OF_EXPERIMENTS = 5
 OUTPUT_FILE = "joinChurn.csv"
@@ -86,7 +87,7 @@ def run_experiment(peers: dict, join_interval: int):
     urlTXTuplesList = []
     submittedTxList = []
     # Amount of individual runs per experiment
-    seconds = 30
+    seconds = 600
     # Creates the amount of groups of tx equal to the amount of runs
     createTXs(NUMBER_OF_TX, urlTXTuplesList, committee_ids, submittedTxList, peerList, peerQuorum, seconds)
     round = 0
@@ -127,7 +128,7 @@ def run_experiment(peers: dict, join_interval: int):
 
 
 def check_from_peers(submitted, confirmed, peers, peerList):
-    intersectionA = peers[peerList[0]].inter
+    intersectionA = peers[peerList[0]].app.api.config[PBFT_INSTANCES]
     for tx in submitted:
         if intersectionA.get_tx(tx[1]) == tx[1].value:
             confirmed[tx] = tx
@@ -161,7 +162,7 @@ def check_submitted_tx(confirmed, sub, urlJsonList, startTime, timeEnd, unconfir
     for r in sub:
         notyetconfirmedtxs.append(r)
     for tx in yetToBeConfirmedTXs:
-        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get/")
+        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get")
         jsonTxt = tx[1].to_json()
         unconfirmed.append(url, jsonTxt)
     for r in notyetconfirmedtxs:
@@ -222,7 +223,7 @@ def createTXs(txNumber, listOfTuples, committee_ids, submittedTxList, peerList, 
         tx = Transaction(quorum=choice(committee_ids), key="tx_{}".format(n), value="{}".format(999))
         selectedPeer = choice(peerQuorumList[tx.quorum_id])
         submittedTx.append((time.time(), tx, selectedPeer))
-        url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected[0]) + "/submit/"
+        url = URL_HOST.format(ip=IP_ADDRESS, port=peerSelected[0]) + "/submit"
         urlTXTuples.append((url, tx))
         n += 1
         poppedPeer = peerSelected.popleft()
@@ -248,7 +249,7 @@ def getTxs(urlJsonList):
 def createUrlJsonList(sub):
     urlJsonList = []
     for tx in sub:
-        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get/")
+        url = URL_HOST.format(ip=IP_ADDRESS, port=tx[2] + "/get")
         jsonTxt = tx[1].to_json()
         urlJsonList.append((url, jsonTxt))
     return urlJsonList

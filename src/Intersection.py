@@ -31,6 +31,9 @@ class Intersection:
     def __del__(self):
         del self.instance_a
         del self.instance_b
+
+    def quorum_ids(self):
+        return [quorum_id for quorum_id in [self.committee_id_a, self.committee_id_b] if quorum_id is not None]
     
     def get_instance(self, quorum_id):
         if str(quorum_id) == self.committee_id_a:
