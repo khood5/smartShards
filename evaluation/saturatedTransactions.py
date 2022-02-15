@@ -1,5 +1,6 @@
 import argparse
 import gc
+import os
 import time
 from math import pow
 from pathlib import Path
@@ -55,6 +56,8 @@ def get_avg_for(number_of_transactions: int, number_of_intersections: int, exper
         results = run_experiment(peers, number_of_transactions)
         throughputPer5[e] = results["throughput"]
         print("Cleaning up experiment {}".format(e))
+        os.echo("docker kill $(docker ps -q)")
+        os.echo("docker rm $(docker ps -a -q)")
         del peers
         gc.collect()
     throughput = []
