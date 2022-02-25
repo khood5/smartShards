@@ -16,8 +16,8 @@ from src.util import make_intersecting_committees_on_host
 
 # Defaults
 NUMBER_OF_TX = 20
-NUMBER_OF_COMMITTEES = 3
-INTERSECTION = 5
+NUMBER_OF_COMMITTEES = 5
+INTERSECTION = 20
 NUMBER_OF_EXPERIMENTS = 1
 OUTPUT_FILE = "TimingDiagram.csv"
 EXPERIMENT_DURATION_SECS = 300
@@ -96,12 +96,14 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
     startTime = time.time()
     while (time.time() - startTime) < experiment_duration_secs:
         # Creates multiprocessing pool
-        pool = ThreadPool(number_of_transactions)
+        #pool = ThreadPool(number_of_transactions)
         # Divides the task into the pool
-        pool.map(submitTxs, unsubmitted_tx_by_round[round])
+        #pool.map(submitTxs, unsubmitted_tx_by_round[round])
         # Processes and rejoins the pool
-        pool.close()
-        pool.join()
+        #pool.close()
+        #pool.join()
+        for tx in unsubmitted_tx_by_round[round]:
+            submitTxs(tx)
         for tx in txTimeSubAndConf[round]:
             tx.append(floor(time.time()))
         if floor(time.time() - startTime) % measurement_interval_secs == 0:
