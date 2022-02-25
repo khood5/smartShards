@@ -33,9 +33,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o config-consensus.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
-                                                                      sawtooth.validator.max_transactions_per_block=1 \
                                                                       sawtooth.validator.block_validation_rules=NofX:1,intkey \
-                                                                      sawtooth.publisher.max_batches_per_block=1 \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "sawtooth_config_command": "sawset proposal create --key {user_priv} \
                                                                       -o pbft-settings.batch \
@@ -43,9 +41,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       sawtooth.consensus.algorithm.version=1.0 \
                                                                       sawtooth.consensus.pbft.idle_timeout={ideal} \
                                                                       sawtooth.consensus.pbft.commit_timeout={commit} \
-                                                                      sawtooth.validator.max_transactions_per_block=1 \
                                                                       sawtooth.validator.block_validation_rules=NofX:1,intkey \
-                                                                      sawtooth.publisher.max_batches_per_block=1 \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
@@ -95,11 +91,11 @@ SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator  \
                            "client": 'intkey-tp-python -v',
                            "pbft": 'pbft-engine -vv --connect tcp://{ip}:5050'}
 
-LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+LOG_FILE_SIZE = 25 * 1024 * 1024  # 5MB
 
 
 def sawtooth_container_log_to(path, console_logging=False):
-    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=10, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     sawtooth_logger.propagate = console_logging
