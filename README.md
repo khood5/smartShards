@@ -38,10 +38,11 @@ The SawtoothPBF also makes available many other methods that serve as a shorthan
 
 If docker refuses connection:
 Clear docker instances:
+```
 docker ps
 docker kill $(docker ps -q)
 docker rm $(docker ps -a -q)
-
+```
 Formatted JSON output for blocks:
 import json
 url = URL_HOST.format(ip=IP_ADDRESS, port='peerDict'['portNumber']) + "/blocks/"
