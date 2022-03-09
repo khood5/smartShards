@@ -1169,6 +1169,8 @@ class TestAPI(unittest.TestCase):
             print(f"{i+1} peers successfully joined")
             res = requests.get(f"http://localhost:{new_peer.port}/self+info")
             print(f"peer {i+1} has self info '{res.json()}'")
+
+            peers[new_peer.port] = new_peer
     
     def test_request_leave(self):
         # Create 5 quorums, 2 peers per intersection, 8 peers per quorum
