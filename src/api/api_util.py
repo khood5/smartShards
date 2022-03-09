@@ -3,6 +3,8 @@ import os
 import logging
 import logging.handlers
 import requests
+import random
+import json
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-2s %(message)s',
@@ -38,25 +40,32 @@ def get_plain_text(response):
 
 # this function is made to work with a flask app and cannot be used with out passing one to it as app
 def forward(app, url_subdirectory: str, quorum_id: str, json_data):
+    neighbour__in_target_quorum = []
+    app.logger.info('Looking for neighbour to forward request to')
+    app.logger.debug('request:')
+    app.logger.debug(json_data)
     for check_quorum_id in list(app.config[QUORUMS].keys()):
         for intersecting_quorum in app.config[QUORUMS][check_quorum_id]:
             intersecting_quorum_id = intersecting_quorum[QUORUM_ID]
             if intersecting_quorum_id == quorum_id:
-                url = URL_REQUEST.format(hostname=intersecting_quorum[API_IP],
-                                        port=intersecting_quorum[PORT])
-                url += url_subdirectory
-                app.logger.info("request in quorum this peer is not a member of forwarding to "
-                                "{}".format(url))
-                try:
-                    forwarding_request = requests.post(url, json=json_data)
-                    forwarding_request = get_plain_text(forwarding_request)
-                    app.logger.info("response form forward is {}".format(forwarding_request))
-                    return forwarding_request
-                except ConnectionError as e:
-                    app.logger.error("{host}:{port} unreachable".format(host=intersecting_quorum[API_IP],
-                                                                        port=intersecting_quorum[PORT]))
-                    app.logger.error(e)
-                    return ROUTE_EXECUTION_FAILED.format(msg="forward to {} failed".format(url))
+                neighbour__in_target_quorum.append(intersecting_quorum)
+    
+    forwarding_to_neighbour = random.choice(neighbour__in_target_quorum)
+    url = URL_REQUEST.format(hostname=forwarding_to_neighbour[API_IP],
+                            port=forwarding_to_neighbour[PORT])
+    url += url_subdirectory
+    app.logger.info("request in quorum this peer is not a member of forwarding to "
+                    "{}".format(url))
+    try:
+        forwarding_request = requests.post(url, json=json_data)
+        forwarding_request = get_plain_text(forwarding_request)
+        app.logger.info("response form forward is {}".format(forwarding_request))
+        return forwarding_request
+    except ConnectionError as e:
+        app.logger.error("{host}:{port} unreachable".format(host=forwarding_to_neighbour[API_IP],
+                                                            port=forwarding_to_neighbour[PORT]))
+        app.logger.error(e)
+        return ROUTE_EXECUTION_FAILED.format(msg="forward to {} failed".format(url))
 
 
 # Creates a blank intersection map based on the quorums

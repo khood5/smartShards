@@ -155,6 +155,29 @@ class TestUtilMethods(unittest.TestCase):
         self.assertEqual('http://192.168.1.200:5000/submit/', mock_post.call_args[0][0])
         self.assertEqual(TRANSACTION_C_JSON, mock_post.call_args[1]['json'])
 
+    @patch('requests.post')
+    def test_forwarding_randomness(self, mock_post):
+        # making test app and setting up test envi
+        app = create_app()
+        app.config['TESTING'] = True
+        app.config['DEBUG'] = False
+        app.config[QUORUMS]["a"] = [{API_IP: "192.168.1.100", PORT: "5000", QUORUM_ID: "c"},
+                                    {API_IP: "192.168.1.200", PORT: "5000", QUORUM_ID: "c"},
+                                    {API_IP: "192.168.1.300", PORT: "5000", QUORUM_ID: "d"},
+                                    {API_IP: "192.168.1.400", PORT: "5000", QUORUM_ID: "e"}]
+        mock_post.return_value = '<Response [200]>'
+        selected_neighbours = []
+        for _ in range(10):
+            forward(app, 'submit/', 'c', TRANSACTION_C_JSON)
+            self.assertEqual(2, len(mock_post.call_args))
+            self.assertIn(mock_post.call_args[0][0], ['http://192.168.1.200:5000/submit/', 'http://192.168.1.100:5000/submit/'])
+            self.assertEqual(TRANSACTION_C_JSON, mock_post.call_args[1]['json'])
+
+            if mock_post.call_args[0][0] not in selected_neighbours:
+                selected_neighbours.append(mock_post.call_args[0][0])\
+        
+        self.assertEqual(len(selected_neighbours), 2)
+
     def test_intersecting_committees_on_host(self):
         peers = make_intersecting_committees_on_host(5, 1)
         for p in peers:
