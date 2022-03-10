@@ -106,9 +106,10 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
             submitTxs(tx)
         for tx in txTimeSubAndConf[round]:
             tx.append(floor(time.time()))
-        if floor(time.time() - startTime) % measurement_interval_secs == 0:
+        if floor(time.time() - lastTime) > measurement_interval_secs:
             for totalRounds in range(0, round):
                 check_from_peers(unsubmitted_tx_by_round[totalRounds], txTimeSubAndConf[totalRounds], peers)
+            lastTime = floor(time.time())
         # If less than 1 second has passed, sleep for the difference
         if (time.time() - startTime) < round:
             time.sleep(round - (time.time() - startTime))
