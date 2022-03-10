@@ -1146,6 +1146,8 @@ class TestAPI(unittest.TestCase):
 
             validators_a_new_peer = requests.get(f"http://localhost:{new_peer.port}/committee+val+keys/{min_id_a}", headers={"Connection":"close"}).json()
             validators_b_new_peer = requests.get(f"http://localhost:{new_peer.port}/committee+val+keys/{min_id_b}", headers={"Connection":"close"}).json()
+            print(f"len(validators_a_new_peer)={len(validators_a_new_peer)}")
+            print(f"len(validators_b_new_peer)={len(validators_b_new_peer)}")
             self.assertEqual(len(validators_a_new_peer), 9+i) # 9+i in quorum 0
             self.assertEqual(len(validators_b_new_peer), 9+i) # 9+i in quorum 1
 
