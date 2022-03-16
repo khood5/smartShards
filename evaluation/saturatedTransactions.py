@@ -1,5 +1,6 @@
 import argparse
 import gc
+import os
 import time
 from math import pow
 from pathlib import Path
@@ -16,9 +17,9 @@ from src.structures import Transaction
 from src.util import make_intersecting_committees_on_host
 
 # Defaults
-NUMBER_OF_TX_MULT = 2
-NUMBER_OF_TX = 7
-NUMBER_OF_COMMITTEES = 2
+NUMBER_OF_TX_MULT = 6
+NUMBER_OF_TX = 2
+NUMBER_OF_COMMITTEES = 4
 INTERSECTION = 7
 NUMBER_OF_EXPERIMENTS = 5
 OUTPUT_FILE = "TransactionSaturation.csv"
@@ -55,6 +56,8 @@ def get_avg_for(number_of_transactions: int, number_of_intersections: int, exper
         results = run_experiment(peers, number_of_transactions)
         throughputPer5[e] = results["throughput"]
         print("Cleaning up experiment {}".format(e))
+        os.echo("docker kill $(docker ps -q)")
+        os.echo("docker rm $(docker ps -a -q)")
         del peers
         gc.collect()
     throughput = []
@@ -116,10 +119,14 @@ def run_experiment(peers: dict, number_of_transactions: int):
 
 
 def check_from_peers(submitted, confirmed, peers, peerList):
-    intersectionA = peers[peerList[0]].inter
     for tx in submitted:
-        if intersectionA.get_tx(tx[1]) == tx[1].value:
-            confirmed[tx] = tx
+        for peer in peerList:
+            intersectionA = peers[peer].inter
+            if (intersectionA.committee_id_a == tx[1].quorum_id) or (intersectionA.committee_id_b == tx[1].quorum_id):
+                if intersectionA.get_tx(tx[1]) == tx[1].value:
+                    confirmed[tx] = tx
+                    break
+                break
 
 
 def check_submitted_tx(confirmed, sub, urlJsonList, startTime, timeEnd, unconfirmed, yetToBeConfirmedTXs):

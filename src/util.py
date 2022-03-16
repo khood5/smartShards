@@ -84,8 +84,8 @@ def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
     if size < 7:
         logging.warning("COMMITTEE UNSTABLE: making committees of less then 7 members can lead to issues with adding "
                         "and removing. ")
-
-    peers = [SawtoothContainer(network) for _ in range(size)]
+    ports = get_ports(size)
+    peers = [SawtoothContainer(ports[_], network) for _ in range(size)]
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
 
     committee_ips = [p.ip() for p in peers]
@@ -171,6 +171,25 @@ def find_free_port():
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
 
+
+def get_ports(size):
+    portNumber = 3
+    result = [[0 for i in range(portNumber)] for j in range(size)]
+    result[0][0] = find_free_port()
+    iterator = 0
+    while result[size-1][portNumber-1] == 0:
+        secondIt = 0
+        while result[iterator][portNumber-1] == 0:
+            flag = False
+            potentialPort = find_free_port()
+            for val in result[iterator]:
+                if val == potentialPort:
+                    flag = True
+            if not flag:
+                result[iterator][secondIt] = potentialPort
+                secondIt += 1
+        iterator += 1
+    return result
 
 # starts a set of peers on the same host (differentiated by port number)
 # returns a dict {portNumber : SmartShardPeer}

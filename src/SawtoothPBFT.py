@@ -33,6 +33,7 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       -o config-consensus.batch \
                                                                       sawtooth.consensus.algorithm.name=pbft \
                                                                       sawtooth.consensus.algorithm.version=1.0 \
+                                                                      sawtooth.validator.block_validation_rules=NofX:1,intkey \
                                                                       sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "sawtooth_config_command": "sawset proposal create --key {user_priv} \
                                                                       -o pbft-settings.batch \
@@ -40,7 +41,8 @@ SAWTOOTH_GENESIS_COMMANDS = {"genesis": "sawset genesis --key {user_priv} -o con
                                                                       sawtooth.consensus.algorithm.version=1.0 \
                                                                       sawtooth.consensus.pbft.idle_timeout={ideal} \
                                                                       sawtooth.consensus.pbft.commit_timeout={commit} \
-                                                                      sawtooth.consensus.pbft.members=\'{keys}\'",
+                                                                      sawtooth.validator.block_validation_rules=NofX:1,intkey \
+                                                                      sawtooth.consensus.pbft.members=\'{keys}\' ",
                              "make_genesis": "sawadm genesis \
                                               config-genesis.batch \
                                               config-consensus.batch \
@@ -57,7 +59,6 @@ SAWTOOTH_GET_IPS_COMMAND = "sawtooth peer list -F json"
 
 # Lists all peer IP in a consensus committee
 SAWTOOTH_GET_PEERS_COMMAND = "sawtooth settings list --filter sawtooth.consensus.pbft.members --format json"
-
 
 # this command is used to give peers permission to add/remove other peers from the committee
 # it must be executed on one current member of the committee that has permission
@@ -90,11 +91,11 @@ SAWTOOTH_START_COMMANDS = {"validator": 'sawtooth-validator  \
                            "client": 'intkey-tp-python -v',
                            "pbft": 'pbft-engine -vv --connect tcp://{ip}:5050'}
 
-LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+LOG_FILE_SIZE = 25 * 1024 * 1024  # 5MB
 
 
 def sawtooth_container_log_to(path, console_logging=False):
-    handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
+    handler = logging.handlers.RotatingFileHandler(path, backupCount=10, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     sawtooth_logger.propagate = console_logging
@@ -187,7 +188,8 @@ class SawtoothContainer:
         return False
 
     def get_ips(self):
-        result = (json.dumps(json.loads(self.run_command(SAWTOOTH_GET_IPS_COMMAND))).replace('\\', "")).replace("tcp://", "")
+        result = (json.dumps(json.loads(self.run_command(SAWTOOTH_GET_IPS_COMMAND))).replace('\\', "")).replace(
+            "tcp://", "")
         list_start = result.find("[")
         ips_str = (result[list_start:])
 
@@ -196,13 +198,14 @@ class SawtoothContainer:
 
     # Gets a table of all other peers
     def get_peers(self):
-        result = json.dumps(json.loads(self.run_command(SAWTOOTH_GET_PEERS_COMMAND))["settings"]["sawtooth.consensus.pbft.members"]).replace('\\', "")
+        result = json.dumps(json.loads(self.run_command(SAWTOOTH_GET_PEERS_COMMAND))["settings"][
+                                "sawtooth.consensus.pbft.members"]).replace('\\', "")
         list_start = result.find("[")
         peers_str = (result[list_start:])[:-1]
 
         peers = json.loads(peers_str)
         return peers
-    
+
     # Notifies other peers of intention to leave
     def leave_network(self, val_key):
         peers = self.get_peers()
@@ -215,8 +218,8 @@ class SawtoothContainer:
 
         final_size = len(new_network)
 
-        assert(initial_size - final_size <= 1)
-        
+        assert (initial_size - final_size <= 1)
+
         return self.update_committee(new_network, stop_on_failure=True)
 
     def rejoin_network(self):
@@ -289,8 +292,7 @@ class SawtoothContainer:
 
     # return the blocks in this peers blockchain
     def blocks(self):
-        # limit=999999999 is the max number of blocks that can be returned in a single query
-        blocks = self.sawtooth_api('http://localhost:8008/blocks?limit=999999999')
+        blocks = self.sawtooth_api('http://localhost:8008/blocks')
         if 'data' in blocks:
             return blocks
         else:
