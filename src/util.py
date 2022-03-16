@@ -84,8 +84,7 @@ def make_sawtooth_committee(size: int, network=DEFAULT_DOCKER_NETWORK):
     if size < 7:
         logging.warning("COMMITTEE UNSTABLE: making committees of less then 7 members can lead to issues with adding "
                         "and removing. ")
-    ports = get_ports(size)
-    peers = [SawtoothContainer(ports[_], network) for _ in range(size)]
+    peers = [SawtoothContainer(network) for _ in range(size)]
     peers[0].make_genesis([p.val_key() for p in peers], [p.user_key() for p in peers])
 
     committee_ips = [p.ip() for p in peers]
