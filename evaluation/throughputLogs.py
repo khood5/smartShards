@@ -43,7 +43,7 @@ if __name__ == '__main__':
         totalConfirmedTx += e[0]
         totalTotalTx += e[1]
     element = 0
-    with open("thoughputLogOutput.csv", "w") as l:
+    with open("throughputLogOutput.csv", "w") as l:
         for tupe in resultsLink:
             l.write("Experiment #: " + str(element) + "\n")
             l.write(str(tupe[0])+", "+str(tupe[1])+"\n")
