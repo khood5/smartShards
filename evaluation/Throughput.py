@@ -24,6 +24,13 @@ from src.util import make_intersecting_committees_on_host
 # 11 -- 1 == 55
 # 12 -- 1 == 66
 
+# 3 -- 10 == 30
+# 4 -- 5 == 30
+# 5 -- 3 == 30
+# 6 -- 2 == 30
+# 8 -- 1 == 28
+
+
 # Defaults
 NUMBER_OF_TX = 20
 NUMBER_OF_COMMITTEES = 3
