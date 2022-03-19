@@ -24,17 +24,17 @@ from src.util import make_intersecting_committees_on_host
 # 11 -- 1 == 55
 # 12 -- 1 == 66
 
-# 3 -- 10 == 30
-# 4 -- 5 == 30
-# 5 -- 3 == 30
-# 6 -- 2 == 30
-# 8 -- 1 == 28
+# 3 -- 10 == 30 DONE
+# 4 -- 5 == 30 DONE
+# 5 -- 3 == 30 DONE
+# 6 -- 2 == 30 DONE
+# 8 -- 1 == 28 DONE
 
 
 # Defaults
 NUMBER_OF_TX = 20
-NUMBER_OF_COMMITTEES = 3
-INTERSECTION = 20
+NUMBER_OF_COMMITTEES = 8
+INTERSECTION = 2
 NUMBER_OF_EXPERIMENTS = 10
 OUTPUT_FILE = "Throughput.csv"
 EXPERIMENT_DURATION_SECS = 300

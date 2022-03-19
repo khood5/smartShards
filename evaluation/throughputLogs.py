@@ -24,14 +24,17 @@ if __name__ == '__main__':
         linkLines = []
         totalTx = 0
         confirmedTx = 0
+        prev = None
         with open(sys.argv[i], "r") as f:
             fileList = list(f)
             for line in fileList:
                 # If tx is submitted in the line
                 if line.find("intkey set") != -1:
                     totalTx += 1
-                if line.find("show") != -1:
-                    confirmedTx += 1
+                if prev is not None:
+                    if prev.find("show") != -1 and line.find("999"):
+                        confirmedTx += 1
+                prev = line
         resultsLink.append((confirmedTx, totalTx))
     results = []
     totalTotalTx = 0
