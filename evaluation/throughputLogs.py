@@ -24,13 +24,14 @@ if __name__ == '__main__':
         linkLines = []
         totalTx = 0
         confirmedTx = 0
+        print(f"opening {sys.argv[i]}")
         with open(sys.argv[i], "r") as f:
             fileList = list(f)
-            for line in fileList:
+            for line, nextLine in zip(fileList[:-1], fileList[1:]):
                 # If tx is submitted in the line
                 if line.find("intkey set") != -1:
                     totalTx += 1
-                if line.find("show") != -1:
+                if line.find("show") != -1 and nextLine.find("Error: No such key") == -1:
                     confirmedTx += 1
         resultsLink.append((confirmedTx, totalTx))
     results = []
@@ -43,7 +44,7 @@ if __name__ == '__main__':
         totalConfirmedTx += e[0]
         totalTotalTx += e[1]
     element = 0
-    with open("throughputLogOutput.csv", "w") as l:
+    with open("throughputLogOutputCR0.2.csv", "w") as l:
         for tupe in resultsLink:
             l.write("Experiment #: " + str(element) + "\n")
             l.write(str(tupe[0])+", "+str(tupe[1])+"\n")

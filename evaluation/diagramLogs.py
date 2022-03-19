@@ -23,15 +23,16 @@ if __name__ == '__main__':
     for i in range(1, len(sys.argv), 1):
         linkLines = []
         #setFlag = False
+        print(f"opening {sys.argv[i]}")
         with open(sys.argv[i], "r") as f:
             fileList = list(f)
             #prev = None
-            for line in fileList:
+            for line, nextLine in zip(fileList[:-1], fileList[1:]):
                 if line.find("intkey set") != -1:
                     txNumber = line[15:-1].split()[4]
                     resultsSet.update({txNumber: (line[0:8])})
                     #setFlag = True
-                if line.find("show") != -1:
+                if line.find("show") != -1 and nextLine.find("Error: No such key") == -1:
                     if resultsSet.get(line[15:-1].split()[4]) is not None:
                         linkLines.append((resultsSet.get(line[15:-1].split()[4]), line[0:8]))
                 prev = line
@@ -52,6 +53,6 @@ if __name__ == '__main__':
             resultsDict[e] += 1
         else:
             resultsDict[e] = 1
-    with open("logOutput.csv", "w") as l:
+    with open("latencyLogOutputCR0.2.csv", "w") as l:
         for key in sorted(resultsDict):
             l.write(str(key)+", "+str(resultsDict[key])+"\n")
