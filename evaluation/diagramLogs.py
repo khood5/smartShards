@@ -25,15 +25,16 @@ if __name__ == '__main__':
         #setFlag = False
         with open(sys.argv[i], "r") as f:
             fileList = list(f)
-            #prev = None
+            prev = None
             for line in fileList:
                 if line.find("intkey set") != -1:
                     txNumber = line[15:-1].split()[4]
                     resultsSet.update({txNumber: (line[0:8])})
                     #setFlag = True
-                if line.find("show") != -1:
-                    if resultsSet.get(line[15:-1].split()[4]) is not None:
-                        linkLines.append((resultsSet.get(line[15:-1].split()[4]), line[0:8]))
+                if prev is not None:
+                    if prev.find("show") != -1 and line.find("999"):
+                        if resultsSet.get(prev[15:-1].split()[4]) is not None:
+                            linkLines.append((resultsSet.get(prev[15:-1].split()[4]), prev[0:8]))
                 prev = line
         resultsLink.append(linkLines)
     results = []
