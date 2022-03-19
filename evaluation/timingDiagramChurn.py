@@ -12,21 +12,20 @@ from src.SawtoothPBFT import sawtooth_container_log_to
 from src.SmartShardPeer import smart_shard_peer_log_to
 from src.api.api_util import get_plain_text
 from src.structures import Transaction
-from src.util import make_intersecting_committees_on_host
+from src.util import make_intersecting_committees_on_host, stop_all_containers
 from random import random
 
 # Defaults
 NUMBER_OF_TX = 20
 NUMBER_OF_COMMITTEES = 5
-INTERSECTION = 20
-NUMBER_OF_EXPERIMENTS = 1
-OUTPUT_FILE = "TimingDiagramChurn.csv"
+INTERSECTION = 3
+NUMBER_OF_EXPERIMENTS = 5
+OUTPUT_FILE = "TimingDiagramChurnRate{cr}.csv"
 EXPERIMENT_DURATION_SECS = 300
 MEASUREMENT_INTERVAL = 5
-JOIN_LEAVE_PROBABILITY = 0.05
 
 # Independent Variable
-CHURN_RATES = [1, 2, 4, 8, 16]
+CHURN_RATES = [0.01, 0.02, 0.05, 0.1, 0.2]
 
 # Const
 IP_ADDRESS = "localhost"
@@ -34,14 +33,14 @@ URL_HOST = "http://{ip}:{port}"
 
 # Opens output file and writes results in it for each data point
 def make_graph_data(outfile: Path, number_of_tx: int, experiment_duration_secs: int, measurement_interval_secs: int,
-                    number_of_intersections: int, experiments: int, committees: int):
+                    number_of_intersections: int, experiments: int, committees: int, churn_rate: float):
     out = open(outfile, 'w')
     print("Outputting to {}".format(outfile))
     out.write("Seconds for confirmation, Number of confirmed transactions\n")
     print("----------------------------------------------------------")
     print("Starting experiments for transaction amount {}".format(number_of_tx))
     avgs = get_avg_for(number_of_tx, experiment_duration_secs, measurement_interval_secs, number_of_intersections,
-                           experiments, committees)
+                           experiments, committees, churn_rate)
     print("Experiments for transaction amount {} ended".format(number_of_tx))
     print("----------------------------------------------------------")
     out.write("{s}, {w}\n".format(s=number_of_tx, w=avgs["throughput"]))
@@ -50,14 +49,19 @@ def make_graph_data(outfile: Path, number_of_tx: int, experiment_duration_secs: 
 
 # Run each experiment and calc avgs
 def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, measurement_interval_secs: int,
-                number_of_intersections: int, experiments: int, committees: int):
+                number_of_intersections: int, experiments: int, committees: int, churn_rate: float):
     throughputPerE = {}
     for e in range(experiments):
-        print("Setting up experiment {}".format(e))
+        print("Setting up experiment {} with churn rate {}".format(e, churn_rate))
+        sawtooth_container_log_to(Path().cwd().joinpath('{}.E{}CR{}.SawtoothContainer.log'.format(__file__, e, churn_rate)))
+        intersection_log_to(Path().cwd().joinpath('{}.E{}CR{}.Intersection.log'.format(__file__, e, churn_rate)))
+        smart_shard_peer_log_to(Path().cwd().joinpath('{}.E{}CR{}.SmartShardPeer.log'.format(__file__, e, churn_rate)))
         peers = make_intersecting_committees_on_host(committees, number_of_intersections)
-        results = run_experiment(peers, experiment_duration_secs, measurement_interval_secs, number_of_transactions)
+        print("Running experiment {} with churn rate {}".format(e, churn_rate))
+        results = run_experiment(peers, experiment_duration_secs, measurement_interval_secs, number_of_transactions, churn_rate)
         throughputPerE[e] = results["throughput"]
-        print("Cleaning up experiment {}".format(e))
+        print("Cleaning up experiment {} with churn rate {}".format(e, churn_rate))
+        stop_all_containers()
         del peers
         gc.collect()
     throughput = {}
@@ -85,7 +89,7 @@ def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, meas
 # experiment_duration_secs: how long to run experiment for
 # number_of_transactions: number of transactions per round (1 sec)
 def run_experiment(peers: dict, experiment_duration_secs: int, measurement_interval_secs: int,
-                   number_of_transactions: int, churn_rate: int):
+                   number_of_transactions: int, churn_rate: float):
     print("Running", end='', flush=True)
     committee_ids = [peers[p].committee_id_a() for p in peers]
     committee_ids.extend([peers[p].committee_id_b() for p in peers])
@@ -99,6 +103,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, measurement_inter
         unsubmitted_tx_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round, txTimeSubAndConf, churn_rate))
     round = 0
     startTime = time.time()
+    lastTime = startTime
     while (time.time() - startTime) < experiment_duration_secs:
         # Creates multiprocessing pool
         #pool = ThreadPool(number_of_transactions)
@@ -167,7 +172,7 @@ def setTime(txTime):
 def create_txs(peers, committee_ids, number_of_transactions, round, txTimeSubAndConf, churn_rate):
     url_tx_tuples = []
     peer_ports = list(peers.keys())
-    churn_transactions = 2 * sum( [ random() < JOIN_LEAVE_PROBABILITY for _ in range(churn_rate) ] )
+    churn_transactions = 3 * sum( [ random() < churn_rate for _ in range(len(peer_ports)) ] )
     # Creates a group of transactions equal to the txNumber
     for tx_id in range(0, number_of_transactions + churn_transactions):
         tx = Transaction(quorum=choice(committee_ids), key="tx_{round}_{id}".format(round=round, id=tx_id), value="{}".format(999))
@@ -205,20 +210,19 @@ if __name__ == '__main__':
     parser.add_argument('-m', type=int, help='measurement interval in secs. Default {}'.format(MEASUREMENT_INTERVAL))
     args = parser.parse_args()
 
-    output_file = Path(args.o) if args.o is not None else Path().cwd().joinpath(OUTPUT_FILE)
-    while not output_file.exists():
-        output_file.touch()
-
     experiments = NUMBER_OF_EXPERIMENTS if args.e is None else args.e
     committees = NUMBER_OF_COMMITTEES if args.t is None else args.t
     number_of_transactions = NUMBER_OF_TX if args.max is None else args.max
     experiment_duration_secs = EXPERIMENT_DURATION_SECS if args.d is None else args.d
     measurement_interval_secs = MEASUREMENT_INTERVAL if args.m is None else args.m
     number_of_intersections = INTERSECTION if args.i is None else args.i
-    sawtooth_container_log_to(Path().cwd().joinpath('{}.SawtoothContainer.log'.format(__file__)))
-    intersection_log_to(Path().cwd().joinpath('{}.Intersection.log'.format(__file__)))
-    smart_shard_peer_log_to(Path().cwd().joinpath('{}.SmartShardPeer.log'.format(__file__)))
-    print("experiments: {e}, committees: {c}".format(e=experiments, c=committees))
 
-    make_graph_data(output_file, number_of_transactions, experiment_duration_secs,
-                    measurement_interval_secs, number_of_intersections, experiments, committees)
+    for churn_rate in CHURN_RATES:
+        output_file = Path(args.o) if args.o is not None else Path().cwd().joinpath(OUTPUT_FILE.format(cr=churn_rate))
+        while not output_file.exists():
+            output_file.touch()
+        
+        print("experiments: {e}, committees: {c}, churn rate: {cr}".format(e=experiments, c=committees, cr=churn_rate))
+
+        make_graph_data(output_file, number_of_transactions, experiment_duration_secs,
+                        measurement_interval_secs, number_of_intersections, experiments, committees, churn_rate)
