@@ -32,7 +32,7 @@ if __name__ == '__main__':
                 if line.find("intkey set") != -1:
                     totalTx += 1
                 if prev is not None:
-                    if prev.find("show") != -1 and line.find("999"):
+                    if prev.find("show") != -1 and line.find("999") != -1:
                         confirmedTx += 1
                 prev = line
         resultsLink.append((confirmedTx, totalTx))

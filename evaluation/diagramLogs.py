@@ -32,7 +32,7 @@ if __name__ == '__main__':
                     resultsSet.update({txNumber: (line[0:8])})
                     #setFlag = True
                 if prev is not None:
-                    if prev.find("show") != -1 and line.find("999"):
+                    if prev.find("show") != -1 and line.find("999") != -1:
                         if resultsSet.get(prev[15:-1].split()[4]) is not None:
                             linkLines.append((resultsSet.get(prev[15:-1].split()[4]), prev[0:8]))
                 prev = line
