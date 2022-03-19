@@ -43,11 +43,8 @@ if __name__ == '__main__':
     for e in resultsLink:
         totalConfirmedTx += e[0]
         totalTotalTx += e[1]
-    element = 0
     with open("throughputLogOutputCR0.2.csv", "w") as l:
-        for tupe in resultsLink:
-            l.write("Experiment #: " + str(element) + "\n")
-            l.write(str(tupe[0])+", "+str(tupe[1])+"\n")
-        l.write("Total Confirmed: " + str(totalConfirmedTx) + "\n")
-        l.write("Total Submitted: " + str(totalTotalTx) + "\n")
-        element += 1
+        l.write(f"experiment, submitted, confirmed\n")
+        for experiment, (confirmed, submitted) in enumerate(resultsLink):
+            l.write(f"{experiment}, {submitted}, {confirmed}\n")
+        l.write(f"total, {totalTotalTx}, {totalConfirmedTx}\n")

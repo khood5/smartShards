@@ -54,5 +54,6 @@ if __name__ == '__main__':
         else:
             resultsDict[e] = 1
     with open("latencyLogOutputCR0.2.csv", "w") as l:
-        for key in sorted(resultsDict):
-            l.write(str(key)+", "+str(resultsDict[key])+"\n")
+        l.write(f"seconds, frequency\n")
+        for seconds, frequency in sorted(resultsDict.items()):
+            l.write(f"{seconds}, {frequency}\n")
