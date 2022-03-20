@@ -1,21 +1,6 @@
 import sys
 from datetime import datetime
 
-
-#Takes two times, of format HH:MM:SS and finds the difference
-def calculateTimeDiff(timeOne, timeTwo):
-    postStripOne = datetime.strptime(timeOne, "%H:%M:%S")
-    postStripTwo = datetime.strptime(timeTwo, "%H:%M:%S")
-    if postStripOne.hour == 23 and postStripTwo.hour > 23:
-        correctionPartOne = datetime(2021, 11, 25, 1)
-        correctionPartTwo = datetime(2021, 11, 25, 13)
-        correct = correctionPartOne - correctionPartTwo
-        postStripOne.__add__(correct)
-        postStripTwo.__add__(correct)
-    timeDifference = postStripTwo - postStripOne
-    return int(timeDifference.total_seconds())
-
-
 #Used in finding timing diagrams
 if __name__ == '__main__':
     resultsSet = {}
@@ -43,8 +28,8 @@ if __name__ == '__main__':
     for e in resultsLink:
         totalConfirmedTx += e[0]
         totalTotalTx += e[1]
-    with open("throughputLogOutputCR0.2.csv", "w") as l:
-        l.write(f"experiment, submitted, confirmed\n")
+    with open("throughputLogOutputCR0.3.csv", "w") as l:
+        l.write(f"experiment,submitted,confirmed\n")
         for experiment, (confirmed, submitted) in enumerate(resultsLink):
-            l.write(f"{experiment}, {submitted}, {confirmed}\n")
-        l.write(f"total, {totalTotalTx}, {totalConfirmedTx}\n")
+            l.write(f"{experiment},{submitted},{confirmed}\n")
+        l.write(f"total,{totalTotalTx},{totalConfirmedTx}\n")
