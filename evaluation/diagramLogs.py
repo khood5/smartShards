@@ -12,7 +12,7 @@ def calculateTimeDiff(timeOne, timeTwo):
         correct = correctionPartOne - correctionPartTwo
         postStripOne.__add__(correct)
         postStripTwo.__add__(correct)
-    timeDifference = postStripTwo - postStripOne
+    timeDifference = (postStripTwo - postStripOne) % 84600
     return int(timeDifference.total_seconds())
 
 
@@ -53,7 +53,7 @@ if __name__ == '__main__':
             resultsDict[e] += 1
         else:
             resultsDict[e] = 1
-    with open("latencyLogOutputCR0.2.csv", "w") as l:
-        l.write(f"seconds, frequency\n")
+    with open("latencyLogOutputCR0.3.csv", "w") as l:
+        l.write(f"seconds,frequency\n")
         for seconds, frequency in sorted(resultsDict.items()):
-            l.write(f"{seconds}, {frequency}\n")
+            l.write(f"{seconds},{frequency}\n")
