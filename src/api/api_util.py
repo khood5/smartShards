@@ -16,13 +16,19 @@ LOG_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 URL_REQUEST = "http://{hostname}:{port}/"
 
 
-def util_log_to(path, console_logging=False):
+def api_util_log_to(path, console_logging=False):
     handler = logging.handlers.RotatingFileHandler(path, backupCount=5, maxBytes=LOG_FILE_SIZE)
     formatter = logging.Formatter('%(asctime)s %(levelname)-2s %(message)s', datefmt='%H:%M:%S')
     handler.setFormatter(formatter)
     api_util_logger.propagate = console_logging
     api_util_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     api_util_logger.addHandler(handler)
+
+    # Return the handler so we can remove it later if we want to
+    return handler
+
+def api_util_remove_log(handler):
+    api_util_logger.removeHandler(handler)
 
 
 # get plain text from HTTP GET response

@@ -19,6 +19,12 @@ def intersection_log_to(path, console_logging=False):
     intersection_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     intersection_logger.addHandler(handler)
 
+    # Return the handler so we can remove it later if we want to
+    return handler
+
+def intersection_remove_log(handler):
+    intersection_logger.removeHandler(handler)
+
 
 class Intersection:
 

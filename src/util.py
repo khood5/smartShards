@@ -33,6 +33,12 @@ def util_log_to(path, console_logging=False):
     util_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     util_logger.addHandler(handler)
 
+    # Return the handler so we can remove it later if we want to
+    return handler
+
+def util_remove_log(handler):
+    util_logger.removeHandler(handler)
+
 
 def stop_all_containers():
     client = docker_api.from_env()
