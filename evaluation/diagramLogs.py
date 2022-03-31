@@ -1,9 +1,9 @@
 from datetime import datetime
 import re
+from timingDiagramChurn import CHURN_RATES, NUMBER_OF_EXPERIMENTS
 
-experiments = 2
-# churnRates = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-churnRates = [0.1]
+experiments = NUMBER_OF_EXPERIMENTS
+churnRates = CHURN_RATES
 
 logFormat = "logs/timingDiagramChurn.py.E{experiment}CR{churnRate}.SawtoothContainer.log"
 
