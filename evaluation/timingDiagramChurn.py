@@ -23,7 +23,8 @@ POOLED = True
 NUMBER_OF_TX = 20
 NUMBER_OF_COMMITTEES = 5
 INTERSECTION = 3
-NUMBER_OF_EXPERIMENTS = 20
+EXPERIMENT_RANGE_START = 0 
+EXPERIMENT_RANGE_END = 20
 EXPERIMENT_DURATION_SECS = 300
 
 # Independent Variable
@@ -49,10 +50,10 @@ URL_HOST = "http://{ip}:{port}"
 
 # Run each experiment
 def run_experiments(number_of_transactions: int, experiment_duration_secs: int, 
-                    number_of_intersections: int, experiments: int, 
-                    committees: int, churn_rate: float):
+                    number_of_intersections: int, experiments_start: int, 
+                    experiments_end: int, committees: int, churn_rate: float):
     
-    for experiment_number in range(experiments):
+    for experiment_number in range(experiments_start, experiments_end):
 
         print(f"Setting up experiment {experiment_number} with churn rate {churn_rate}")
         log_format = f'{__file__}.E{experiment_number}CR{churn_rate}'
@@ -212,4 +213,4 @@ def update_url_txs(url_txs_by_round, peers, rounds, end_time):
 
 if __name__ == '__main__':
     for churn_rate in CHURN_RATES:        
-        run_experiments(NUMBER_OF_TX, EXPERIMENT_DURATION_SECS, INTERSECTION, NUMBER_OF_EXPERIMENTS, NUMBER_OF_COMMITTEES, churn_rate)
+        run_experiments(NUMBER_OF_TX, EXPERIMENT_DURATION_SECS, INTERSECTION, EXPERIMENT_RANGE_START, EXPERIMENT_RANGE_END,NUMBER_OF_COMMITTEES, churn_rate)
