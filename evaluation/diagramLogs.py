@@ -1,8 +1,8 @@
 from datetime import datetime
 import re
-from timingDiagramChurn import CHURN_RATES, NUMBER_OF_EXPERIMENTS
+from timingDiagramChurn import CHURN_RATES, EXPERIMENT_RANGE_END
 
-experiments = NUMBER_OF_EXPERIMENTS
+experiments = EXPERIMENT_RANGE_END
 churnRates = CHURN_RATES
 
 logFormat = "logs/timingDiagramChurn.py.E{experiment}CR{churnRate}.SawtoothContainer.log"
