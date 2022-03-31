@@ -1,6 +1,6 @@
 import csv
 
-CHURN_RATES = [0.01, 0.02, 0.05, 0.1, 0.2]
+CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
 OUTPUT_FILENAME = 'latencyLogAggregated.csv'
 
 if __name__ == '__main__':
@@ -8,11 +8,11 @@ if __name__ == '__main__':
     for churn_rate, csv_filename in [(churn_rate, f"latencyLogOutputCR{churn_rate}.csv") for churn_rate in CHURN_RATES]:
         print(f"Reading {csv_filename}...")
         with open(csv_filename, newline='') as csv_file:
-            csv_reader = csv.reader(csv_file, delimiter=',')
-            for seconds, transactions in csv_reader:
-                seconds_data = csv_data.get(int(seconds), {})
-                seconds_data[churn_rate] = int(transactions)
-                csv_data[int(seconds)] = seconds_data
+            csv_reader = csv.DictReader(csv_file, delimiter=',')
+            for row in csv_reader:
+                seconds_data = csv_data.get(int(row['seconds']), {})
+                seconds_data[churn_rate] = int(row['frequency'])
+                csv_data[int(row['seconds'])] = seconds_data
     
     min_latency = min(csv_data.keys())
     max_latency = max(csv_data.keys())
