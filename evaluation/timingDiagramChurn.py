@@ -1,5 +1,6 @@
 import argparse
 import gc
+import socket
 import time
 from math import floor
 from pathlib import Path
@@ -27,7 +28,19 @@ EXPERIMENT_DURATION_SECS = 300
 
 # Independent Variable
 # CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-CHURN_RATES = [0.1]
+MACHINE_CHURN_RATES = {
+    'jadamek3': [0],
+    'jadamek7': [0.05],
+    'jadamek8': [0.1],
+    'jadamek9': [0.15],
+    'jadamek10': [0.2],
+    'jadamek11': [0.25],
+    'jadamek12': [0.3],
+}
+
+hostname = socket.gethostname()
+
+CHURN_RATES = MACHINE_CHURN_RATES[hostname]
 
 # Const
 IP_ADDRESS = "localhost"
