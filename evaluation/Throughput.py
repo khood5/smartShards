@@ -114,7 +114,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transac
             pool.close()
             pool.join()
 
-            unconfirmed_transactions = url_tx for url_tx in unconfirmed_transactions if url_tx not in confirmed_txs]
+            unconfirmed_transactions = [url_tx for url_tx in unconfirmed_transactions if url_tx not in confirmed_txs]
         else:
             for url_tx in url_txs_by_round[round]:
                 submit_tx(url_tx)
@@ -177,17 +177,17 @@ def update_url_txs(url_txs_by_round, peers, rounds, end_time):
         confirmed_txs = []
 
         for submit_url, tx in url_txs_by_round[round_number]:
-        print(f"Getting {tx.key} from {get_url}")
-        text = get_plain_text(res)
-        if tx.value == text:
-            confirmed_txs.append((submit_url, txs))
+            print(f"Getting {tx.key} from {get_url}")
+            text = get_plain_text(res)
+            if tx.value == text:
+                confirmed_txs.append((submit_url, txs))
+            if time.time() >= end_time:
+                break
+
         if time.time() >= end_time:
             break
 
-    if time.time() >= end_time:
-        break
-
-    url_txs_by_round[round_number] = [url_tx for url_tx in url_txs_by_round[round_number] if url_tx not in confirmed_txs]
+        url_txs_by_round[round_number] = [url_tx for url_tx in url_txs_by_round[round_number] if url_tx not in confirmed_txs]
 
 if __name__ == '__main__':
     run_experiments(NUMBER_OF_TX, EXPERIMENT_DURATION_SECS, INTERSECTION, EXPERIMENTS, NUMBER_OF_COMMITTEES)
