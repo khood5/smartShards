@@ -26,6 +26,11 @@ def smart_shard_peer_log_to(path, console_logging=False):
     smart_shard_peer_log.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     smart_shard_peer_log.addHandler(handler)
 
+    # Return the handler so we can remove it later if we want to
+    return handler
+
+def smart_shard_peer_remove_log(handler):
+    smart_shard_peer_log.removeHandler(handler)
 
 DEFAULT_PORT = 5000
 

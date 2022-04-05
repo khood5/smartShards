@@ -102,6 +102,11 @@ def sawtooth_container_log_to(path, console_logging=False):
     sawtooth_logger.setLevel(os.environ.get("LOGLEVEL", "INFO"))
     sawtooth_logger.addHandler(handler)
 
+    # Return the handler so we can remove it later if we want to
+    return handler
+
+def sawtooth_container_remove_log(handler):
+    sawtooth_logger.removeHandler(handler)
 
 def append_keys(keys, command, admin_key=ADMIN_KEY["admin"]):
     keys = '{}'.format(str(keys).replace('\'', '\"'))  # converts list to string in form '["keyVal","keyVal" ...]'

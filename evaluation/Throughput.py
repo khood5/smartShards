@@ -4,14 +4,17 @@ import time
 from math import floor
 from pathlib import Path
 from random import choice
+from multiprocessing.pool import ThreadPool
+from itertools import repeat
 
 import requests
-from src.Intersection import intersection_log_to
-from src.SawtoothPBFT import sawtooth_container_log_to
-from src.SmartShardPeer import smart_shard_peer_log_to
+from src.Intersection import intersection_log_to, intersection_remove_log
+from src.SawtoothPBFT import sawtooth_container_log_to, sawtooth_container_remove_log
+from src.SmartShardPeer import smart_shard_peer_log_to, smart_shard_peer_remove_log
 from src.api.api_util import get_plain_text
 from src.structures import Transaction
-from src.util import make_intersecting_committees_on_host
+from src.util import make_intersecting_committees_on_host, stop_all_containers
+
 
 
 # Quorums and Intersections to use
@@ -23,7 +26,6 @@ from src.util import make_intersecting_committees_on_host
 # 8 -- 2 == 56
 # 11 -- 1 == 55
 # 12 -- 1 == 66
-
 # 3 -- 10 == 30 DONE
 # 4 -- 5 == 30 DONE
 # 5 -- 3 == 30 DONE
@@ -32,174 +34,160 @@ from src.util import make_intersecting_committees_on_host
 
 
 # Defaults
-NUMBER_OF_TX = 20
+POOLED = True
+NUMBER_OF_TX = 100
 NUMBER_OF_COMMITTEES = 8
 INTERSECTION = 2
 NUMBER_OF_EXPERIMENTS = 10
-OUTPUT_FILE = "Throughput.csv"
-EXPERIMENT_DURATION_SECS = 300
-MEASUREMENT_INTERVAL = 5
+EXPERIMENT_DURATION_SECS = 1500
+#MEASUREMENT_INTERVAL = 5
 
 # Const
 IP_ADDRESS = "localhost"
 URL_HOST = "http://{ip}:{port}"
 
-# Opens output file and writes results in it for each data point
-def make_graph_data(outfile: Path, number_of_tx: int, experiment_duration_secs: int, measurement_interval_secs: int,
+
+# Run each experiment
+def run_experiments(number_of_transactions: int, experiment_duration_secs: int,
                     number_of_intersections: int, experiments: int, committees: int):
-    out = open(outfile, 'w')
-    print("Outputting to {}".format(outfile))
-    out.write("Seconds for confirmation, Number of confirmed transactions\n")
-    print("----------------------------------------------------------")
-    print("Starting experiments for transaction amount {}".format(number_of_tx))
-    avgs = get_avg_for(number_of_tx, experiment_duration_secs, measurement_interval_secs, number_of_intersections,
-                           experiments, committees)
-    print("Experiments for transaction amount {} ended".format(number_of_tx))
-    print("----------------------------------------------------------")
-    out.write("{s}, {w}\n".format(s=number_of_tx, w=avgs["throughput"]))
-    out.close()
+    for experiment_number in range(experiments):
 
-
-# Run each experiment and calc avgs
-def get_avg_for(number_of_transactions: int, experiment_duration_secs: int, measurement_interval_secs: int,
-                number_of_intersections: int, experiments: int, committees: int):
-    throughputPerE = {}
-    for e in range(experiments):
-        print("Setting up experiment {}".format(e))
+        print(f"Setting up experiment {experiment_number} with {number_of_transactions} transactions per second, {committees} committees, and {number_of_intersections} number of intersections")
+        log_format = f'{__file__}.E{experiment_number}C{committees}I{number_of_intersections|'
+        sawtooth_log_handler = sawtooth_container_log_to(Path().cwd().joinpath('logs', f'{log_format}.SawtoothContainer.log'))
+        intersection_log_handler = intersection_log_to(Path().cwd().joinpath('logs', f'{log_format}.Intersection.log'))
+        smart_shard_peer_log_handler = smart_shard_peer_log_to(Path().cwd().joinpath('logs', f'{log_format}.SmartShardPeer.log'))
         peers = make_intersecting_committees_on_host(committees, number_of_intersections)
-        results = run_experiment(peers, experiment_duration_secs, measurement_interval_secs, number_of_transactions)
-        throughputPerE[e] = results["throughput"]
-        print("Cleaning up experiment {}".format(e))
+
+        print(f"Running experiment {experiment_number}")
+        run_experiment(peers, experiment_duration_secs, number_of_transactions)
+        sawtooth_container_remove_log(sawtooth_log_handler)
+        intersection_remove_log(intersection_log_handler)
+        smart_shard_peer_remove_log(smart_shard_peer_log_handler)
+        stop_all_containers()
         del peers
         gc.collect()
-    throughput = {}
-    # For each experiment
-    for e in range(experiments):
-        # If no transactions were confirmed, inputs zero, to prevent dividing by zero
-        if len(throughputPerE[e]) == 0:
-            throughputPerE[e] = 0
-        # takes the amount of transactions confirmed per experiment and divides them by the runs in each experiment
-        else:
-            for key in throughputPerE[e]:
-                if key in throughput:
-                    value = throughput[key] + throughputPerE[e][key]
-                    throughput[key] = value
-                else:
-                    throughput[key] = throughputPerE[e][key]
-    sortedlist = sorted(throughput.items())
-    sortedThroughput = dict(sortedlist)
-    return {"throughput": sortedThroughput}
-
 
 # Gets the individual data for each amount of transactions sent
 # peers: dict of peers port number as key and SmartShardPeer as obj
 # experiment_duration_secs: how long to run experiment for
 # number_of_transactions: number of transactions per round (1 sec)
-def run_experiment(peers: dict, experiment_duration_secs: int, measurement_interval_secs: int,
-                   number_of_transactions: int):
-    print("Running", end='', flush=True)
-    committee_ids = [peers[p].committee_id_a() for p in peers]
-    committee_ids.extend([peers[p].committee_id_b() for p in peers])
-    committee_ids = list(dict.fromkeys(committee_ids))
-    unsubmitted_tx_by_round = []  # list of transactions that should be submitted per round
-    txTimeSubAndConf = []
+def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transactions: int):
+
+    committee_ids_a = [peers[p].committee_id_a() for p in peers]
+    committee_ids_b = [peers[p].committee_id_b() for p in peers]
+    committee_ids = tuple(commitee_ids_a.union(committee_ids_b))
+
+    url_txs_by_round = []  # list of transactions that should be submitted per round
+
     # Creates the amount of groups of tx equal to the amount of runs
-    for round in range(0, experiment_duration_secs):
-        txTimeSubAndConf.append([])
-        unsubmitted_tx_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round, txTimeSubAndConf))
+    for round in range(experiment_duration_secs):
+        unsubmitted_tx_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round))
+
     round = 0
     startTime = time.time()
+    endTime = startTime + experiment_duration_secs:
+
+    unconfirmed_transactions = []
+
     while (time.time() - startTime) < experiment_duration_secs:
-        for tx in unsubmitted_tx_by_round[round]:
-            submitTxs(tx)
-        for tx in txTimeSubAndConf[round]:
-            tx.append(floor(time.time()))
+
+        #Submit all of the transactions for the current round
+        if POOLED:
+            # Creates multiprocessing pool
+            pool = ThreadPool(len(url_txs_by_round[round]))
+            # Divides the task into the pool
+            pool.map(submit_tx, url_txs_by_round[round])
+            # Processes and rejoins the pool
+            pool.close()
+            pool.join()
+
+            for url_tx in url_txs_by_round[round]:
+                unconfirmed_transactions.append(url_tx)
+
+            confirmed_txs = []
+            # Creates multiprocessing pool
+            pool = ThreadPool(len(unconfirmed_transactions))
+            # Divides the task into the pool
+            pool.starmap(update_confirmations, zip(unconfirmed_transactions, repeat(confirmed_txs), repeat(str(list(peers.keys())[0]))))
+            # Processes and rejoins the pool
+            pool.close()
+            pool.join()
+
+            unconfirmed_transactions = url_tx for url_tx in unconfirmed_transactions if url_tx not in confirmed_txs]
+        else:
+            for url_tx in url_txs_by_round[round]:
+                submit_tx(url_tx)
+                if time.time() >= endTime:
+                    break
+
+
+            update_url_txs(url_txs_by_round, peers, round, endTime)
+
         # If less than 1 second has passed, sleep for the difference
         if (time.time() - startTime) < round:
             time.sleep(round - (time.time() - startTime))
+
         round += 1
-    for totalRounds in range(0, round):
-        check_from_peers(unsubmitted_tx_by_round[totalRounds], txTimeSubAndConf[totalRounds], peers)
-    timeToConfirm = {}
-    for totalRounds in range(0, round):
-        for tx in range(0, number_of_transactions):
-            if len(txTimeSubAndConf[totalRounds][tx])>1:
-                if (floor(txTimeSubAndConf[totalRounds][tx][1])-floor(txTimeSubAndConf[totalRounds][tx][0])) in timeToConfirm:
-                    timeToConfirm[(floor(txTimeSubAndConf[totalRounds][tx][1])-floor(txTimeSubAndConf[totalRounds][tx][0]))] += 1
-                else:
-                    timeToConfirm[(floor(txTimeSubAndConf[totalRounds][tx][1]) - floor(txTimeSubAndConf[totalRounds][tx][0]))] = 1
-    return {"throughput": timeToConfirm}
 
 
-def check_from_peers(submitted, confirmed, peers):
-    url = URL_HOST.format(ip=IP_ADDRESS, port=str(list(peers.keys())[0]) + "/get/")
-    remove_from_sub = []
-    for tx in submitted:
-        if tx[1].value == get_plain_text(requests.post(url, json=tx[1].to_json())):
-            remove_from_sub.append(tx)
-            txID = (tx[1].key.split('_'))[2]
-            confirmed[int(txID)].append(floor(time.time()))
-    for r in remove_from_sub:
-        i = 0
-        for tx in submitted:
-            if r[1].key == tx[1].key:
-                del submitted[i]
-                break
-            i += 1
+def create_txs(peers, committee_ids, number_of_transactions, round):
 
-
-# Submits each of the transactions, removes the used grouping from the list
-def submitTxs(tuplesList):
-    # Submits the transaction, using the url as a key
-    requests.post(tuplesList[0], json=tuplesList[1].to_json())
-
-
-def setTime(txTime):
-    txTime.append(floor(time.time()))
-
-
-def create_txs(peers, committee_ids, number_of_transactions, round, txTimeSubAndConf):
     url_tx_tuples = []
     peer_ports = list(peers.keys())
+
     # Creates a group of transactions equal to the txNumber
-    for tx_id in range(0, number_of_transactions):
-        tx = Transaction(quorum=choice(committee_ids), key="tx_{round}_{id}".format(round=round, id=tx_id), value="{}".format(999))
+
+    for tx_id in range(number_of_transactions):
+        tx = Transaction(quorum=choice(committee_ids), key=f"tx_{round}_{tx_id}", value="999")
         selected_peer = choice(peer_ports)
-        url = URL_HOST.format(ip=IP_ADDRESS, port=selected_peer) + "/submit/"
-        url_tx_tuples.append((url, tx, time.time()))
-        peer_ports.append(peer_ports.pop(0))
-        txTimeSubAndConf[round].append(([]))
+        url = f"{URL_HOST.format(ip=IP_ADDRESS, port=selected_peer)}/submit/"
+        url_tx_tuples.append((url, tx))
+
     return url_tx_tuples
 
 
+# Submits each of the transactions, removes the used grouping from the list
+def submitTxs(url_tx):
+    # Submits the transaction, using the url as a key
+    url, tx = url_tx
+    requests.post(url, json=tx.to_json())
+
+def update_confirmations(url_tx, confirmed_txs, port):
+
+    get_url = f"{URL_HOST.format(ip=IP_ADDRESS, port=port)}/get/"
+
+    submit_url, tx = url_tx
+
+    print(f"Getting {tx.key} from {get_url}")
+    res = requests.post(get_url, json=tx.to_json())
+    text = get_plain_text(res)
+    if tx.value == text:
+        confirmed_txs.append((submit_url, tx))
+
+
+def update_url_txs(url_txs_by_round, peers, rounds, end_time):
+
+    global confirmed_txs
+
+    selected_peer = str(list(peers.keys())[0])
+    get_url = f"{URL_HOST.format(ip=IP_ADDRESS, port=selected_peer)}/get/"
+
+    for round_number in range(rounds):
+        confirmed_txs = []
+
+        for submit_url, tx in url_txs_by_round[round_number]:
+        print(f"Getting {tx.key} from {get_url}")
+        text = get_plain_text(res)
+        if tx.value == text:
+            confirmed_txs.append((submit_url, txs))
+        if time.time() >= end_time:
+            break
+
+    if time.time() >= end_time:
+        break
+
+    url_txs_by_round[round_number] = [url_tx for url_tx in url_txs_by_round[round_number] if url_tx not in confirmed_txs]
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Make a performance graph based on throughput per measurement interval. '
-                                                 'Each data point is an amount of transactions. Runs from tx#=q to tx#=2p')
-    parser.add_argument('-o', type=str, help='File to output data (csv format)')
-    parser.add_argument('-max', type=int,
-                        help='Max number of transactions per round (1 sec). Default {}'.format(NUMBER_OF_TX))
-    parser.add_argument('-d', type=int, help='experiment duration in secs. Default {}'.format(EXPERIMENT_DURATION_SECS))
-    parser.add_argument('-i', type=int, help='Intersection between committees. Default {}'.format(INTERSECTION))
-    parser.add_argument('-e', type=int, help='Number of experiments to run per data point. '
-                                             'Default {}'.format(NUMBER_OF_EXPERIMENTS))
-    parser.add_argument('-t', type=int, help='Total number of committees. Default {}'.format(NUMBER_OF_COMMITTEES))
-    parser.add_argument('-m', type=int, help='measurement interval in secs. Default {}'.format(MEASUREMENT_INTERVAL))
-    args = parser.parse_args()
-
-    output_file = Path(args.o) if args.o is not None else Path().cwd().joinpath(OUTPUT_FILE)
-    while not output_file.exists():
-        output_file.touch()
-
-    experiments = NUMBER_OF_EXPERIMENTS if args.e is None else args.e
-    committees = NUMBER_OF_COMMITTEES if args.t is None else args.t
-    number_of_transactions = NUMBER_OF_TX if args.max is None else args.max
-    experiment_duration_secs = EXPERIMENT_DURATION_SECS if args.d is None else args.d
-    measurement_interval_secs = MEASUREMENT_INTERVAL if args.m is None else args.m
-    number_of_intersections = INTERSECTION if args.i is None else args.i
-    sawtooth_container_log_to(Path().cwd().joinpath('{}.SawtoothContainer.log'.format(__file__)))
-    intersection_log_to(Path().cwd().joinpath('{}.Intersection.log'.format(__file__)))
-    smart_shard_peer_log_to(Path().cwd().joinpath('{}.SmartShardPeer.log'.format(__file__)))
-    print("experiments: {e}, committees: {c}".format(e=experiments, c=committees))
-
-    make_graph_data(output_file, number_of_transactions, experiment_duration_secs,
-                    measurement_interval_secs, number_of_intersections, experiments, committees)
+    run_experiments(NUMBER_OF_TX, EXPERIMENT_DURATION_SECS, INTERSECTION, EXPERIMENTS, NUMBER_OF_COMMITTEES)
