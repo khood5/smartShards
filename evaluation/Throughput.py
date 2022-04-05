@@ -36,8 +36,8 @@ from src.util import make_intersecting_committees_on_host, stop_all_containers
 # Defaults
 POOLED = True
 NUMBER_OF_TX = 100
-NUMBER_OF_COMMITTEES = 8
-INTERSECTION = 2
+NUMBER_OF_COMMITTEES = 3
+INTERSECTION = 9
 NUMBER_OF_EXPERIMENTS = 10
 EXPERIMENT_DURATION_SECS = 1500
 #MEASUREMENT_INTERVAL = 5
@@ -86,7 +86,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transac
 
     round = 0
     startTime = time.time()
-    endTime = startTime + experiment_duration_secs:
+    endTime = startTime + experiment_duration_secs
 
     unconfirmed_transactions = []
 
