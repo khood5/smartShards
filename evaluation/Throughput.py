@@ -53,7 +53,7 @@ def run_experiments(number_of_transactions: int, experiment_duration_secs: int,
     for experiment_number in range(experiments):
 
         print(f"Setting up experiment {experiment_number} with {number_of_transactions} transactions per second, {committees} committees, and {number_of_intersections} number of intersections")
-        log_format = f'{__file__}.E{experiment_number}C{committees}I{number_of_intersections|'
+        log_format = f'{__file__}.E{experiment_number}C{committees}I{number_of_intersections}'
         sawtooth_log_handler = sawtooth_container_log_to(Path().cwd().joinpath('logs', f'{log_format}.SawtoothContainer.log'))
         intersection_log_handler = intersection_log_to(Path().cwd().joinpath('logs', f'{log_format}.Intersection.log'))
         smart_shard_peer_log_handler = smart_shard_peer_log_to(Path().cwd().joinpath('logs', f'{log_format}.SmartShardPeer.log'))
