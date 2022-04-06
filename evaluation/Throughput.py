@@ -82,7 +82,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transac
 
     # Creates the amount of groups of tx equal to the amount of runs
     for round in range(experiment_duration_secs):
-        unsubmitted_tx_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round))
+        url_txs_by_round.append(create_txs(peers, committee_ids, number_of_transactions, round))
 
     round = 0
     startTime = time.time()
