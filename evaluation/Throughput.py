@@ -76,7 +76,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transac
 
     committee_ids_a = [peers[p].committee_id_a() for p in peers]
     committee_ids_b = [peers[p].committee_id_b() for p in peers]
-    committee_ids = tuple(commitee_ids_a.union(committee_ids_b))
+    committee_ids = tuple(committee_ids_a.union(committee_ids_b))
 
     url_txs_by_round = []  # list of transactions that should be submitted per round
 
