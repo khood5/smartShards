@@ -97,7 +97,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int, number_of_transac
             # Creates multiprocessing pool
             pool = ThreadPool(len(url_txs_by_round[round]))
             # Divides the task into the pool
-            pool.map(submit_tx, url_txs_by_round[round])
+            pool.map(submitTxs, url_txs_by_round[round])
             # Processes and rejoins the pool
             pool.close()
             pool.join()
