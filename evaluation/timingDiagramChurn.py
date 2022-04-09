@@ -24,8 +24,9 @@ NUMBER_OF_TX = 20
 NUMBER_OF_COMMITTEES = 5
 INTERSECTION = 3
 EXPERIMENT_RANGE_START = 0 
-EXPERIMENT_RANGE_END = 20
+EXPERIMENT_RANGE_END = 2
 EXPERIMENT_DURATION_SECS = 300
+SAMPLE_MOD = 5
 
 # Independent Variable
 # CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
@@ -109,7 +110,10 @@ def run_experiment(peers: dict, experiment_duration_secs: int,
             pool.join()
 
             for url_tx in url_txs_by_round[round]:
-                unconfirmed_transactions.append(url_tx)
+                tx_id = int(url_tx[1].key.split('_')[2])
+                take_sample = tx_id % SAMPLE_MOD == 0
+                if take_sample:
+                    unconfirmed_transactions.append(url_tx)
 
             confirmed_txs = []
             # Creates multiprocessing pool

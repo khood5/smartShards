@@ -1,13 +1,13 @@
 import re
-from timingDiagramChurn import CHURN_RATES, EXPERIMENT_RANGE_END
+from timingDiagramChurn import CHURN_RATES, EXPERIMENT_RANGE_END, SAMPLE_MOD
 
 experiments = EXPERIMENT_RANGE_END
 churnRates = CHURN_RATES
 
 logFormat = "logs/timingDiagramChurn.py.E{experiment}CR{churnRate}.SawtoothContainer.log"
 
-submitted_format = "(?P<tx_time>\d+:\d+:\d+) INFO \d+.\d+.\d+.\d+:running command: *intkey set (?P<tx_id>tx_\d+_\d+) (?P<tx_val>\d+)"
-confirmed_format = "(?P<tx_time>\d+:\d+:\d+) INFO \d+.\d+.\d+.\d+:command result: *(?P<tx_id>tx_\d+_\d+): (?P<tx_val>\d+)"
+submitted_format = "(?P<tx_time>\d+:\d+:\d+) INFO \d+.\d+.\d+.\d+:running command: *intkey set (?P<tx_key>tx_(?P<tx_round>\d+)_(?P<tx_id>\d+)) (?P<tx_val>\d+)"
+confirmed_format = "(?P<tx_time>\d+:\d+:\d+) INFO \d+.\d+.\d+.\d+:command result: *(?P<tx_key>tx_(?P<tx_round>\d+)_(?P<tx_id>\d+)): (?P<tx_val>\d+)"
 
 #Used in finding timing diagrams
 if __name__ == '__main__':
@@ -28,21 +28,25 @@ if __name__ == '__main__':
                     confirm = re.search(confirmed_format, line)
                     # If tx is submitted in the line
                     if submit is not None:
-                        tx_id = submit.group('tx_id')
-                        tx_val = submit.group('tx_val')
+                        tx_key = submit.group('tx_key')
+                        tx_round = int(submit.group('tx_round'))
+                        tx_id = int(submit.group('tx_id'))
+                        tx_val = int(submit.group('tx_val'))
                         tx_time = submit.group('tx_time')
-                        print("submit")
-                        print(tx_id, tx_val, tx_time)
-                        if tx_val == "999":
+                        if tx_val == 999 and tx_id % SAMPLE_MOD == 0:
+                            print("submit")
+                            print(tx_id, tx_val, tx_time)
                             totalTx += 1
                         
                     if confirm is not None:
-                        tx_id = confirm.group('tx_id')
-                        tx_val = confirm.group('tx_val')
+                        tx_key = confirm.group('tx_key')
+                        tx_round = int(confirm.group('tx_round'))
+                        tx_id = int(confirm.group('tx_id'))
+                        tx_val = int(confirm.group('tx_val'))
                         tx_time = confirm.group('tx_time')
-                        print("confirm")
-                        print(tx_id, tx_val, tx_time)
-                        if tx_val == "999":
+                        if tx_val == 999 and tx_id % SAMPLE_MOD == 0:
+                            print("confirm")
+                            print(tx_id, tx_val, tx_time)
                             confirmedTx += 1
             resultsLink.append((confirmedTx, totalTx))
         results = []
