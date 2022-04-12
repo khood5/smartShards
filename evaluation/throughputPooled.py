@@ -24,8 +24,8 @@ NUMBER_OF_TX = 50
 NUMBER_OF_COMMITTEES = 4
 INTERSECTION = 3
 EXPERIMENT_RANGE_START = 0 
-EXPERIMENT_RANGE_END = 1
-EXPERIMENT_DURATION_SECS = 100
+EXPERIMENT_RANGE_END = 5
+EXPERIMENT_DURATION_SECS = 300
 
 # Independent Variable
 # CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
@@ -138,7 +138,7 @@ def run_experiment(peers: dict, experiment_duration_secs: int,
 
     confirmed_txs = []
     # Creates multiprocessing pool
-    pool = ThreadPool(len(unconfirmed_transactions))
+    pool = ThreadPool(NUMBER_OF_TX)
     # Divides the task into the pool
     pool.starmap(update_confirmations, zip(unconfirmed_transactions, repeat(confirmed_txs), repeat(str(list(peers.keys())[0]))))
     # Processes and rejoins the pool
