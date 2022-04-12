@@ -64,7 +64,7 @@ def run_experiments(number_of_transactions: int, experiment_duration_secs: int,
         peers = make_intersecting_committees_on_host(committees, number_of_intersections)
 
         print(f"Running experiment {experiment_number} with committee number {committees}")
-        run_experiment(peers, experiment_duration_secs, number_of_transactions, churn_rate)
+        run_experiment(peers, experiment_duration_secs, number_of_transactions)
         
         print(f"Cleaning up experiment {experiment_number} with committee {committees}")
         sawtooth_container_remove_log(sawtooth_log_handler)
