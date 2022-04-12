@@ -170,7 +170,7 @@ def create_txs(peers, committee_ids, number_of_transactions, round):
 
 
 def submit_tx(url_tx):
-    print(f"url_tx: {url_tx}")
+    #print(f"url_tx: {url_tx}")
     url, tx = url_tx
     print(f"Submitting ({tx.key}: {tx.value}) to {url}")
     requests.post(url, json=tx.to_json())
@@ -182,13 +182,13 @@ def update_confirmations(url_tx, confirmed_txs, port):
 
     submit_url, tx = url_tx
 
-    print(f"Getting ({tx.key}: {tx.value}) from {get_url}")
+    #print(f"Getting ({tx.key}: {tx.value}) from {get_url}")
     res = requests.post(get_url, json=tx.to_json())
     text = get_plain_text(res)
-    print("------------------------------------")
-    print(url_tx)
-    print(confirmed_txs)
-    print(f"The response's plaintext is: {text}")
+    #print("------------------------------------")
+    #print(url_tx)
+    #print(confirmed_txs)
+    #print(f"The response's plaintext is: {text}")
     if tx.value == text:
         print("Confirmed!")
         confirmed_txs.append((submit_url, tx))
