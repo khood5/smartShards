@@ -31,13 +31,13 @@ SAMPLE_MOD = 5
 # Independent Variable
 # CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
 MACHINE_CHURN_RATES = {
-    'jadamek3': [0],
-    'jadamek7': [0.05],
-    'jadamek8': [0.1],
-    'jadamek9': [0.15],
-    'jadamek10': [0.2],
-    'jadamek11': [0.25],
-    'jadamek12': [0.3],
+    'jadamek3': [0.4],
+    'jadamek7': [0.5],
+    'jadamek8': [0.6],
+    'jadamek9': [0.7],
+    'jadamek10': [0.8],
+    'jadamek11': [0.9],
+    'jadamek12': [1],
 }
 
 hostname = socket.gethostname()
