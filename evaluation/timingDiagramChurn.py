@@ -20,23 +20,23 @@ from random import random
 POOLED = True
 
 # Defaults
-NUMBER_OF_TX = 20
+NUMBER_OF_TX = 50
 NUMBER_OF_COMMITTEES = 5
 INTERSECTION = 3
 EXPERIMENT_RANGE_START = 0 
-EXPERIMENT_RANGE_END = 20
-EXPERIMENT_DURATION_SECS = 300
+EXPERIMENT_RANGE_END = 10
+EXPERIMENT_DURATION_SECS = 600
 SAMPLE_MOD = 1
 
 # Independent Variable
 # CHURN_RATES = [0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
 MACHINE_CHURN_RATES = {
-    'jadamek3': [0.4],
-    'jadamek7': [0.5],
-    'jadamek8': [0.6],
-    'jadamek9': [0.7],
-    'jadamek10': [0.8],
-    'jadamek11': [0.9],
+    'jadamek3': [0, 0.1],
+    'jadamek7': [0.2, 0.3],
+    'jadamek8': [0.4, 0.5],
+    'jadamek9': [0.6, 0.7],
+    'jadamek10': [0.8, 0.9],
+    'jadamek11': [1],
     'jadamek12': [1],
 }
 
