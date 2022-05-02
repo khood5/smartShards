@@ -174,7 +174,7 @@ def create_txs(peers, committee_ids, number_of_transactions, round):
 def submit_tx(url_tx):
     #print(f"url_tx: {url_tx}")
     url, tx = url_tx
-    print(f"Submitting ({tx.key}: {tx.value}) to {url}, going to {tx.quorum}")
+    print(f"Submitting ({tx.key}: {tx.value}) to {url}, going to {tx.quorum_id}")
     requests.post(url, json=tx.to_json())
 
 
