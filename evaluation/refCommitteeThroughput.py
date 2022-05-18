@@ -162,7 +162,7 @@ def create_txs(peers, committee_ids, number_of_transactions, peers_by_quorum, ro
         #is_churn = tx_id >= number_of_transactions
         tx_value = "999"
         tx = Transaction(quorum=choice(committee_ids[1:]), key=f"tx_{round}_{tx_id}", value=tx_value)
-        selected_peer = choice(peers_by_quorum[0])
+        selected_peer = choice(peers_by_quorum[committee_ids[0]])
         url = f"{URL_HOST.format(ip=IP_ADDRESS, port=selected_peer)}/submit/"
         url_tx_tuples.append((url, tx))
         #peer_ports.append(peer_ports.pop(0))
